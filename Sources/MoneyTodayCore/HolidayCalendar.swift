@@ -11,18 +11,27 @@ public struct HolidayCalendar: Codable, Equatable, Sendable {
         self.fetchedAt = fetchedAt
     }
 
-    public func workdayInfo(for date: Date, calendar: Calendar = .current) -> WorkDayInfo {
-        let key = Self.keyFormatter.string(from: date)
+    public func workdayInfo(
+        for date: Date,
+        calendar: Calendar = .current,
+        weekendOverrides: [String: Bool] = [:]
+    ) -> WorkDayInfo {
+        let key = Self.key(for: date, calendar: calendar)
+        let weekday = calendar.component(.weekday, from: date)
+        let isWeekend = weekday == 1 || weekday == 7
+
+        if isWeekend, let override = weekendOverrides[key] {
+            return WorkDayInfo(date: key, isWorkday: override, name: override ? "自定义周末工作" : "自定义周末休息")
+        }
+
         if let info = days[key] {
             return info
         }
 
-        let weekday = calendar.component(.weekday, from: date)
-        let isWeekend = weekday == 1 || weekday == 7
         return WorkDayInfo(date: key, isWorkday: !isWeekend, name: isWeekend ? "周末休息" : "工作日")
     }
 
-    public func workdayCount(calendar: Calendar = .current) -> Int {
+    public func workdayCount(calendar: Calendar = .current, weekendOverrides: [String: Bool] = [:]) -> Int {
         guard let first = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
               let nextYear = calendar.date(from: DateComponents(year: year + 1, month: 1, day: 1))
         else {
@@ -32,7 +41,7 @@ public struct HolidayCalendar: Codable, Equatable, Sendable {
         var count = 0
         var date = first
         while date < nextYear {
-            if workdayInfo(for: date, calendar: calendar).isWorkday {
+            if workdayInfo(for: date, calendar: calendar, weekendOverrides: weekendOverrides).isWorkday {
                 count += 1
             }
             guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
@@ -49,6 +58,13 @@ public struct HolidayCalendar: Codable, Equatable, Sendable {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+
+    public static func key(for date: Date, calendar inputCalendar: Calendar = .current) -> String {
+        var calendar = inputCalendar
+        calendar.timeZone = inputCalendar.timeZone
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 1, components.day ?? 1)
+    }
 }
 
 public protocol HolidayCalendarProviding: Sendable {

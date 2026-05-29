@@ -19,7 +19,10 @@ let package = Package(
         .executableTarget(
             name: "MoneyToday",
             dependencies: ["MoneyTodayCore"],
-            path: "Sources/MoneyTodayApp"
+            path: "Sources/MoneyTodayApp",
+            resources: [
+                .copy("Resources")
+            ]
         ),
         .executableTarget(
             name: "MoneyTodayChecks",

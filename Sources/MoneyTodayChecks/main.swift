@@ -1,5 +1,6 @@
 import Foundation
 import MoneyTodayCore
+import AppKit
 
 @main
 struct MoneyTodayChecks {
@@ -7,6 +8,7 @@ struct MoneyTodayChecks {
         try incomeCalculatorChecks()
         try holidayServiceChecks()
         try rewardCatalogChecks()
+        try resourceChecks()
         print("MoneyTodayChecks passed")
     }
 
@@ -79,6 +81,36 @@ struct MoneyTodayChecks {
             "2026-05-25": WorkDayInfo(date: "2026-05-25", isWorkday: false, name: "Company holiday")
         ]).workdayCount(calendar: calendar)
         assert(oneHolidayCount == plainCount - 1)
+
+        let weekSnapshot = calculator.snapshot(
+            at: try date("2026-05-25 14:00:00"),
+            settings: AppSettings(annualSalary: 260_000, selectedPeriod: .week),
+            holidayCalendar: HolidayCalendar(year: 2026),
+            calendar: calendar
+        )
+        assert(weekSnapshot.period.kind == .week)
+        assert(weekSnapshot.period.workdayCount == 5)
+        assert(abs(weekSnapshot.period.earned - weekSnapshot.dailyIncome * 0.5) < 0.01)
+
+        let monthSnapshot = calculator.snapshot(
+            at: try date("2026-05-25 14:00:00"),
+            settings: AppSettings(annualSalary: 260_000, selectedPeriod: .month),
+            holidayCalendar: HolidayCalendar(year: 2026),
+            calendar: calendar
+        )
+        assert(monthSnapshot.period.kind == .month)
+        assert(monthSnapshot.period.earned > monthSnapshot.dailyIncome * 10)
+
+        let saturdayKey = "2026-05-23"
+        let saturdayOverride = calculator.snapshot(
+            at: try date("2026-05-23 12:00:00"),
+            settings: AppSettings(annualSalary: 260_000, customWeekendOverrides: [saturdayKey: true]),
+            holidayCalendar: HolidayCalendar(year: 2026),
+            calendar: calendar
+        )
+        assert(saturdayOverride.status == .working)
+        assert(saturdayOverride.earnedToday > 0)
+        assert(HolidayCalendar(year: 2026).workdayCount(calendar: calendar, weekendOverrides: [saturdayKey: true]) == plainCount + 1)
     }
 
     private static func holidayServiceChecks() throws {
@@ -116,6 +148,7 @@ struct MoneyTodayChecks {
         let fallback = HolidayCalendar(year: 2026)
         assert(fallback.workdayInfo(for: saturday, calendar: calendar).isWorkday == false)
         assert(fallback.workdayInfo(for: monday, calendar: calendar).isWorkday == true)
+        assert(fallback.workdayInfo(for: saturday, calendar: calendar, weekendOverrides: ["2026-05-23": true]).isWorkday == true)
     }
 
     private static func rewardCatalogChecks() throws {
@@ -131,6 +164,9 @@ struct MoneyTodayChecks {
         assert(low.count >= 1)
         assert(mid.count >= 1)
         assert(high.count >= 1)
+        assert(!low.assetName.isEmpty)
+        assert(!mid.assetName.isEmpty)
+        assert(!high.assetName.isEmpty)
 
         let sameDayAgain = RewardCatalog.reward(earned: 500, dailyIncome: 1000, currencyCode: "CNY", date: date, calendar: calendar)
         assert(mid == sameDayAgain)
@@ -148,6 +184,26 @@ struct MoneyTodayChecks {
 
         let justStarted = RewardCatalog.reward(earned: 0, dailyIncome: 1000, currencyCode: "CNY", date: date, calendar: calendar)
         assert(justStarted.count == 0)
+        assert(RewardCatalog.catalogEntries.count == 300)
+        assert(RewardCatalog.catalogEntries.allSatisfy { !$0.assetName.isEmpty })
+    }
+
+    private static func resourceChecks() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let rewardsDir = root.appendingPathComponent("Sources/MoneyTodayApp/Resources/RewardsV2/final-47")
+        for entry in RewardCatalog.catalogEntries where entry.enabled {
+            let url = rewardsDir.appendingPathComponent("\(entry.assetName).png")
+            assert(FileManager.default.fileExists(atPath: url.path), "Missing reward asset \(entry.assetName)")
+            assert(NSImage(contentsOf: url) != nil, "Invalid reward asset \(entry.assetName)")
+        }
+
+        let spriteURL = root.appendingPathComponent("Sources/MoneyTodayApp/Resources/Pets/zhima/spritesheet.webp")
+        guard let image = NSImage(contentsOf: spriteURL) else {
+            assertionFailure("Missing zhima spritesheet")
+            return
+        }
+        assert(Int(image.size.width) == 1536)
+        assert(Int(image.size.height) == 1872)
     }
 
     private static func shanghaiCalendar() -> Calendar {

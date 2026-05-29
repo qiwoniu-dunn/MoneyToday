@@ -20,6 +20,8 @@ final class MoneyTickerViewModel: ObservableObject {
     @Published var startText: String = "09:00"
     @Published var endText: String = "19:00"
     @Published var hasCompletedInitialSetup: Bool
+    @Published var weekendEditorMonth: Date = Date()
+    @Published private(set) var isPanelVisible: Bool = false
 
     private let settingsStore = SettingsStore()
     private let holidayService = HolidayService()
@@ -27,6 +29,7 @@ final class MoneyTickerViewModel: ObservableObject {
     private var timer: Timer?
     private var holidayCalendar = HolidayCalendar(year: Calendar.current.component(.year, from: Date()))
     private var cancellables = Set<AnyCancellable>()
+    private var moneyFormatters: [String: NumberFormatter] = [:]
 
     init() {
         let loaded = settingsStore.load()
@@ -70,16 +73,51 @@ final class MoneyTickerViewModel: ObservableObject {
         )
     }
 
-    func start() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.refresh()
+    var selectedPeriod: PeriodKind {
+        settings.selectedPeriod
+    }
+
+    var rewardEntries: [RewardCatalogEntry] {
+        RewardCatalog.catalogEntries
+    }
+
+    var weekendDatesForEditor: [WeekendDateOption] {
+        let calendar = Calendar.current
+        let comps = calendar.dateComponents([.year, .month], from: weekendEditorMonth)
+        guard let start = calendar.date(from: comps),
+              let end = calendar.date(byAdding: .month, value: 1, to: start)
+        else { return [] }
+
+        var result: [WeekendDateOption] = []
+        var date = start
+        while date < end {
+            let weekday = calendar.component(.weekday, from: date)
+            if weekday == 1 || weekday == 7 {
+                let key = HolidayCalendar.key(for: date, calendar: calendar)
+                let defaultWorking = false
+                let isWorking = settings.customWeekendOverrides[key] ?? defaultWorking
+                result.append(WeekendDateOption(date: date, key: key, isSaturday: weekday == 7, isWorking: isWorking))
             }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
+            date = next
         }
+        return result
+    }
+
+    func start() {
+        configureTimer()
         Task {
             await syncHolidays()
         }
+    }
+
+    func setPanelVisible(_ visible: Bool) {
+        guard isPanelVisible != visible else { return }
+        isPanelVisible = visible
+        if visible {
+            refresh()
+        }
+        configureTimer()
     }
 
     func refresh() {
@@ -143,6 +181,36 @@ final class MoneyTickerViewModel: ObservableObject {
         persistAndRefresh()
     }
 
+    func setPeriod(_ period: PeriodKind) {
+        settings.selectedPeriod = period
+        persistAndRefresh()
+        configureTimer()
+    }
+
+    func toggleDashboardPrivacy() {
+        settings.hideDashboardAmounts.toggle()
+        persistAndRefresh()
+    }
+
+    func toggleSettingsPrivacy() {
+        settings.hideSettingsAmounts.toggle()
+        persistAndRefresh()
+    }
+
+    func changeWeekendEditorMonth(by value: Int) {
+        weekendEditorMonth = Calendar.current.date(byAdding: .month, value: value, to: weekendEditorMonth) ?? weekendEditorMonth
+    }
+
+    func toggleWeekendOverride(_ option: WeekendDateOption) {
+        settings.customWeekendOverrides[option.key] = !option.isWorking
+        persistAndRefresh()
+    }
+
+    func resetWeekendOverride(_ option: WeekendDateOption) {
+        settings.customWeekendOverrides.removeValue(forKey: option.key)
+        persistAndRefresh()
+    }
+
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
             if enabled {
@@ -165,13 +233,29 @@ final class MoneyTickerViewModel: ObservableObject {
     }
 
     func formatMoney(_ value: Double, fractionDigits: Int = 2) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencySymbol = settings.currencySymbol
-        formatter.currencyCode = settings.currencyCode
-        formatter.minimumFractionDigits = fractionDigits
-        formatter.maximumFractionDigits = fractionDigits
+        let key = "\(settings.currencyCode)|\(settings.currencySymbol)|\(fractionDigits)"
+        let formatter: NumberFormatter
+        if let cached = moneyFormatters[key] {
+            formatter = cached
+        } else {
+            let created = NumberFormatter()
+            created.numberStyle = .currency
+            created.currencySymbol = settings.currencySymbol
+            created.currencyCode = settings.currencyCode
+            created.minimumFractionDigits = fractionDigits
+            created.maximumFractionDigits = fractionDigits
+            moneyFormatters[key] = created
+            formatter = created
+        }
         return formatter.string(from: NSNumber(value: value)) ?? "\(settings.currencySymbol)\(String(format: "%.2f", value))"
+    }
+
+    func displayMoney(_ value: Double, fractionDigits: Int = 2, hidden: Bool) -> String {
+        hidden ? "***" : formatMoney(value, fractionDigits: fractionDigits)
+    }
+
+    func displayPlainNumber(_ value: Double, hidden: Bool) -> String {
+        hidden ? "***" : Self.inputFormatter.string(from: NSNumber(value: value)) ?? "\(Int(value))"
     }
 
     private func bindSettings() {
@@ -186,6 +270,22 @@ final class MoneyTickerViewModel: ObservableObject {
     private func persistAndRefresh() {
         settingsStore.save(settings)
         refresh()
+    }
+
+    private func configureTimer() {
+        timer?.invalidate()
+        timer = nil
+
+        guard isPanelVisible else { return }
+
+        let interval = settings.selectedPeriod == .day ? 0.1 : 1.0
+        let scheduled = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refresh()
+            }
+        }
+        scheduled.tolerance = settings.selectedPeriod == .day ? 0.02 : 0.25
+        timer = scheduled
     }
 
     private static func parseTime(_ value: String) -> TimeOfDay? {
@@ -217,4 +317,16 @@ final class MoneyTickerViewModel: ObservableObject {
         formatter.unitsStyle = .short
         return formatter
     }()
+}
+
+struct WeekendDateOption: Identifiable, Equatable {
+    var id: String { key }
+    var date: Date
+    var key: String
+    var isSaturday: Bool
+    var isWorking: Bool
+
+    var weekdayLabel: String {
+        isSaturday ? "周六" : "周日"
+    }
 }

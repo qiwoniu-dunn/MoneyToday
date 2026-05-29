@@ -6,13 +6,35 @@ public struct RewardMessage: Equatable, Sendable {
     public var itemName: String
     public var count: Int
     public var iconKind: RewardIconKind
+    public var assetName: String
 
-    public init(title: String, detail: String, itemName: String, count: Int, iconKind: RewardIconKind) {
+    public init(title: String, detail: String, itemName: String, count: Int, iconKind: RewardIconKind, assetName: String) {
         self.title = title
         self.detail = detail
         self.itemName = itemName
         self.count = count
         self.iconKind = iconKind
+        self.assetName = assetName
+    }
+}
+
+public struct RewardCatalogEntry: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var name: String
+    public var priceCNY: Double
+    public var unit: String
+    public var category: String
+    public var assetName: String
+    public var enabled: Bool
+
+    public init(id: String, name: String, priceCNY: Double, unit: String, category: String, assetName: String, enabled: Bool = true) {
+        self.id = id
+        self.name = name
+        self.priceCNY = priceCNY
+        self.unit = unit
+        self.category = category
+        self.assetName = assetName
+        self.enabled = enabled
     }
 }
 
@@ -47,53 +69,73 @@ public enum RewardCatalog {
         let dailyCNY = max(dailyIncome, 1) * cnyRate(for: currencyCode)
         if earnedCNY < 8 {
             return RewardMessage(
-                title: "今天刚开始，也算正式启动。",
-                detail: "先让数字跑起来，第一份小确幸马上就到。",
+                title: "芝麻已经就位，今天开始计分。",
+                detail: "先把仪表点亮，第一份小奖励马上会出现。",
                 itemName: "启动奖励",
                 count: 0,
-                iconKind: .spark
+                iconKind: .spark,
+                assetName: "reward-spark"
             )
         }
-        let tier = SalaryTier(dailyIncomeCNY: dailyCNY)
-        let bucket = ProgressBucket(progress: earnedCNY / dailyCNY)
-        let pool = items
-            .filter { $0.tiers.contains(tier) && $0.buckets.contains(bucket) && $0.priceCNY <= max(earnedCNY, 8) }
 
-        let candidates = pool.isEmpty
-            ? items.filter { $0.tiers.contains(tier) && $0.priceCNY <= max(earnedCNY, 8) }
-            : pool
-        let fallback = items.filter { $0.tiers.contains(tier) }.min { $0.priceCNY < $1.priceCNY }
-        let selectedPool = candidates.isEmpty ? [fallback].compactMap { $0 } : candidates
-        let index = stableIndex(
-            key: "\(dayKey(for: date, calendar: calendar))|\(currencyCode)|\(tier.rawValue)|\(bucket.rawValue)|\(Int(dailyCNY))",
-            count: selectedPool.count
-        )
-        let item = selectedPool[index]
-        let count = max(1, Int(floor(earnedCNY / item.priceCNY)))
+        let tier = nearestTier(for: dailyCNY)
+        let step = milestoneStep(earnedCNY: earnedCNY, tier: tier)
+        let candidates = items.filter { $0.tier == tier && $0.step == step }
+        let pool = candidates.isEmpty ? fallbackItems(for: tier, step: step) : candidates
+        let seed = "\(dayKey(for: date, calendar: calendar))|\(currencyCode.uppercased())|\(tier)|\(step)"
+        let item = pool[stableIndex(key: "\(seed)|item", count: pool.count)]
+        let title = title(for: item, earnedCNY: earnedCNY, seed: "\(seed)|title")
+        let detail = detail(for: item, earnedCNY: earnedCNY, tier: tier, step: step, seed: "\(seed)|detail")
+
         return RewardMessage(
-            title: item.titles[stableIndex(key: "\(index)|title|\(dayKey(for: date, calendar: calendar))", count: item.titles.count)],
-            detail: item.detail(count: count, seed: "\(index)|detail|\(dayKey(for: date, calendar: calendar))"),
+            title: title,
+            detail: detail,
             itemName: item.name,
-            count: count,
-            iconKind: item.iconKind
+            count: 1,
+            iconKind: item.iconKind,
+            assetName: item.assetName
         )
+    }
+
+    public static var catalogEntries: [RewardCatalogEntry] {
+        items.map { item in
+            RewardCatalogEntry(
+                id: item.id,
+                name: item.name,
+                priceCNY: item.priceCNY,
+                unit: "项",
+                category: item.category,
+                assetName: item.assetName,
+                enabled: true
+            )
+        }
     }
 
     private static func cnyRate(for currencyCode: String) -> Double {
         switch currencyCode.uppercased() {
-        case "CNY", "RMB":
-            return 1
-        case "USD":
-            return 7.2
-        case "EUR":
-            return 7.8
-        case "GBP":
-            return 9.1
-        case "JPY":
-            return 0.046
-        default:
-            return 1
+        case "CNY", "RMB": return 1
+        case "USD": return 7.2
+        case "EUR": return 7.8
+        case "GBP": return 9.1
+        case "JPY": return 0.046
+        default: return 1
         }
+    }
+
+    private static func nearestTier(for dailyCNY: Double) -> Int {
+        [300, 500, 1000, 2000, 3000].min { abs(Double($0) - dailyCNY) < abs(Double($1) - dailyCNY) } ?? 300
+    }
+
+    private static func milestoneStep(earnedCNY: Double, tier: Int) -> Int {
+        let stepSize = Double(tier) / 10
+        let rawStep = Int(floor(earnedCNY / max(stepSize, 1)))
+        return min(max(rawStep, 1), 10)
+    }
+
+    private static func fallbackItems(for tier: Int, step: Int) -> [RewardItem] {
+        let sameTier = items.filter { $0.tier == tier }
+        let sorted = sameTier.sorted { abs($0.step - step) < abs($1.step - step) }
+        return Array(sorted.prefix(6))
     }
 
     private static func dayKey(for date: Date, calendar inputCalendar: Calendar) -> String {
@@ -112,109 +154,343 @@ public enum RewardCatalog {
         return abs(hash) % count
     }
 
+    private static func title(for item: RewardItem, earnedCNY: Double, seed: String) -> String {
+        let templates = [
+            "芝麻递来一份\(item.name)。",
+            "这一格，换成\(item.name)刚刚好。",
+            "今天的补偿感：\(item.name)已点亮。",
+            "到账的不只是数字，还有\(item.name)。",
+            "辛苦值够了，\(item.name)出现。",
+            "芝麻认证：\(item.name)可以安排。"
+        ]
+        return templates[stableIndex(key: seed, count: templates.count)]
+    }
+
+    private static func detail(for item: RewardItem, earnedCNY: Double, tier: Int, step: Int, seed: String) -> String {
+        let amount = Int(item.priceCNY)
+        let earned = Int(earnedCNY.rounded())
+        let templates = [
+            "今日已赚约 ¥\(earned)，这一段约等于 ¥\(amount) 的\(item.name)。先把这份小确幸收下。",
+            "第 \(step)/10 个小里程碑到了，\(item.name)给今天加一点真实的回甘。",
+            "按 ¥\(tier) 日薪档看，这一刻已经够换一份\(item.name)。芝麻说：不算白忙。",
+            "工资进度条又亮一格，\(item.name)这种具体奖励，比数字更会安慰人。",
+            "你已经把这一段时间换成了\(item.name)。今天的努力有了可摸到的形状。",
+            "这一格不讲大道理，只把\(item.name)摆到你面前：继续，但别忘了犒劳自己。"
+        ]
+        return templates[stableIndex(key: seed, count: templates.count)]
+    }
+
     private static let items: [RewardItem] = [
-        RewardItem("便利店咖啡", 8, "杯", .coffee, [.low, .mid], [.start, .early], ["今天的咖啡自由已经到账。", "先给清醒的自己加一杯。"], ["约等于 %@，开工的小火苗亮起来了。", "%@已经稳稳拿下，今天有个轻快开头。", "先攒到%@，这一口清醒是你自己赚的。"]),
-        RewardItem("拿铁", 28, "杯", .coffee, [.low, .mid, .high], [.early, .morning], ["一杯体面的拿铁已经收入囊中。", "今天的咖啡仪式感有了。"], ["约等于%@，早上的努力已经有香气了。", "%@在手，今天的状态可以再往前推一格。", "你已经赚出%@，给自己一点顺滑的奖励。"]),
-        RewardItem("奶茶", 18, "杯", .tea, [.low, .mid], [.early, .morning], ["甜一点的奖励已经赚出来了。", "奶茶小确幸到账。"], ["约等于%@，苦日子里也有甜的部分。", "%@已经出现，今天不是只有待办事项。", "你给自己赚到%@，小快乐合理到账。"]),
-        RewardItem("热乎早餐", 15, "份", .meal, [.low, .mid], [.start, .early], ["早餐钱已经稳稳拿下。", "今天从一份热乎早餐开始回血。"], ["约等于%@，胃和心情都可以被照顾一下。", "%@已经到手，今天的底气从热气开始。", "你已经赚出%@，这一天不是空启动。"]),
-        RewardItem("工作日午餐", 35, "顿", .meal, [.low, .mid], [.morning, .noon], ["一顿踏实午饭已经到账。", "中午可以吃得更安心一点。"], ["约等于%@，午饭可以不用太委屈。", "%@稳了，今天的能量补给有着落。", "你已经赚到%@，给认真干活的人加餐。"]),
-        RewardItem("麦当劳套餐", 42, "份", .meal, [.low, .mid], [.morning, .noon], ["快乐套餐被你赚出来了。", "今天的快餐快乐已经有了。"], ["约等于%@，快乐可以简单但不能缺席。", "%@已经到账，打工人的小胜利很具体。", "你赚到了%@，今天可以拥有一点熟悉的快乐。"]),
-        RewardItem("打车短途", 45, "次", .ride, [.low, .mid], [.morning, .noon], ["少挤一段路的底气有了。", "今天已经赚到一次舒服回程。"], ["约等于%@，身体可以少吃一点通勤的苦。", "%@已经攒下，今天有资格舒服一点。", "你赚到%@，回家的路可以更松弛。"]),
-        RewardItem("电影票", 50, "张", .movie, [.low, .mid], [.noon, .afternoon], ["一场电影的放松已经到账。", "今晚的银幕时间被你攒出来了。"], ["约等于%@，现实之外的两个小时有了。", "%@已经到手，今天可以给大脑放个短假。", "你赚出%@，晚上的剧情可以由你选择。"]),
-        RewardItem("健身单次课", 80, "次", .wellness, [.low, .mid], [.afternoon, .late], ["给身体充电的钱已经有了。", "今天也给健康攒了一点预算。"], ["约等于%@，照顾身体也算今天的成果。", "%@已经攒下，别忘了给自己回血。", "你赚到%@，今天的力量感不是假的。"]),
-        RewardItem("周末早午餐", 120, "顿", .meal, [.low, .mid], [.afternoon, .late], ["一顿漂亮早午餐已经收入囊中。", "周末的小体面正在变真实。"], ["约等于%@，松弛感被你一点点攒出来了。", "%@已经落袋，周末可以更像周末。", "你赚出%@，生活感正在回到桌上。"]),
-        RewardItem("城市按摩", 168, "次", .wellness, [.mid, .high], [.noon, .afternoon, .late], ["肩颈救援资金已经到位。", "辛苦归辛苦，放松的钱你赚到了。"], ["约等于%@，紧绷的肩膀有救了。", "%@已经攒下，今天可以把自己从疲惫里捞一下。", "你赚到%@，放松不是奢侈，是补给。"]),
-        RewardItem("机械键盘键帽", 199, "套", .keyboard, [.mid, .high], [.afternoon, .late], ["桌面的快乐升级有了。", "今天已经攒下一套键帽。"], ["约等于%@，桌面快乐可以更新一格。", "%@已经到手，敲字的心情都变响亮了。", "你赚出%@，生产力也可以有点审美。"]),
-        RewardItem("高级鼠标", 399, "只", .mouse, [.mid, .high], [.afternoon, .late, .done], ["顺手的生产力工具已经被你赚出雏形。", "今天也给桌面装备加了把劲。"], ["约等于%@，顺手的装备正在靠近。", "%@已经有了，今天的操作感更有盼头。", "你赚到%@，给高频使用的手一点体面。"]),
-        RewardItem("香水小瓶", 450, "瓶", .beauty, [.mid, .high], [.afternoon, .late, .done], ["一点精致生活已经到账。", "今天攒下了一瓶好闻的奖励。"], ["约等于%@，今天也有属于自己的气味记忆。", "%@已经到手，精致不是口号，是余额里的进度。", "你赚出%@，生活可以多一点好闻的细节。"]),
-        RewardItem("米其林风格晚餐", 650, "顿", .meal, [.mid, .high], [.late, .done], ["一顿好好犒劳自己的晚餐已经有了。", "今天的体面晚餐被你拿下了。"], ["约等于%@，今晚可以认真庆祝一下自己。", "%@已经落袋，辛苦值得被好好招待。", "你赚到%@，今天的努力有资格上桌。"]),
-        RewardItem("降噪耳机", 999, "副", .headphones, [.mid, .high], [.late, .done], ["安静世界的门票已经收入囊中。", "今天已经赚到一副清净。"], ["约等于%@，安静感被你亲手攒出来了。", "%@已经到位，世界可以小声一点。", "你赚出%@，给自己的专注力添一层保护。"]),
-        RewardItem("运动相机", 1799, "台", .camera, [.high], [.afternoon, .late, .done], ["下一段记录生活的小设备已经靠近了。", "今天的冒险感被你赚出来了。"], ["约等于%@，下一次出发可以被好好记录。", "%@已经出现，生活不只在工位上发生。", "你赚到%@，把今天的努力换成未来的画面。"]),
-        RewardItem("短途酒店", 899, "晚", .hotel, [.high], [.noon, .afternoon, .late], ["一晚换个地方醒来的预算有了。", "今天已经攒下一晚短途松弛感。"], ["约等于%@，换个城市醒来的可能性有了。", "%@已经攒下，松弛感不是空想。", "你赚出%@，周末可以离日常远一点。"]),
-        RewardItem("周边城市旅行", 2200, "次", .travel, [.high], [.late, .done], ["一个小旅行目标已经收入囊中。", "今天赚到的不只是钱，还有出发的底气。"], ["约等于%@，出发这件事变得更具体。", "%@已经在路上，今天的努力带着风景感。", "你赚到%@，地图上又多了一个可以点亮的地方。"]),
-        RewardItem("旗舰手机基金", 5999, "份", .phone, [.high], [.done], ["一台新手机的小目标正在被你拿下。", "今天的努力正在变成真正的大件。"], ["约等于%@，大件目标也在被你一点点推进。", "%@已经成形，今天的进度很硬核。", "你赚出%@，不是小确幸，是实打实的大目标。"]),
-        RewardItem("轻薄电脑基金", 7999, "份", .laptop, [.high], [.done], ["生产力大件也不是遥不可及。", "今天已经给下一台电脑添了一大笔。"], ["约等于%@，下一台生产力工具有了实感。", "%@已经写进今天的成果里，漂亮。", "你赚到%@，给未来的效率添了一块砖。"])
+        RewardItem(id: "300-1-1", tier: 300, step: 1, priceCNY: 30, name: "星巴克拿铁", category: "咖啡饮品", assetName: "reward-coffee", iconKind: .coffee),
+        RewardItem(id: "300-1-2", tier: 300, step: 1, priceCNY: 30, name: "滴滴快车短途", category: "城市出行", assetName: "reward-city-ride", iconKind: .ride),
+        RewardItem(id: "300-1-3", tier: 300, step: 1, priceCNY: 30, name: "麦当劳板烧鸡腿堡套餐", category: "快餐套餐", assetName: "reward-burger-meal", iconKind: .meal),
+        RewardItem(id: "300-1-4", tier: 300, step: 1, priceCNY: 30, name: "喜茶多肉葡萄", category: "茶饮甜点", assetName: "reward-tea", iconKind: .tea),
+        RewardItem(id: "300-1-5", tier: 300, step: 1, priceCNY: 30, name: "瑞幸丝绒拿铁", category: "咖啡饮品", assetName: "reward-coffee", iconKind: .coffee),
+        RewardItem(id: "300-1-6", tier: 300, step: 1, priceCNY: 30, name: "肯德基香辣鸡腿堡套餐", category: "快餐套餐", assetName: "reward-burger-meal", iconKind: .meal),
+        RewardItem(id: "300-2-1", tier: 300, step: 2, priceCNY: 60, name: "万达影城电影票", category: "电影娱乐", assetName: "reward-movie", iconKind: .movie),
+        RewardItem(id: "300-2-2", tier: 300, step: 2, priceCNY: 60, name: "和府捞面招牌面", category: "工作餐食", assetName: "reward-noodle-bento", iconKind: .meal),
+        RewardItem(id: "300-2-3", tier: 300, step: 2, priceCNY: 60, name: "Peet's 咖啡甜点", category: "咖啡饮品", assetName: "reward-coffee", iconKind: .coffee),
+        RewardItem(id: "300-2-4", tier: 300, step: 2, priceCNY: 60, name: "Manner 咖啡双杯", category: "咖啡饮品", assetName: "reward-coffee", iconKind: .coffee),
+        RewardItem(id: "300-2-5", tier: 300, step: 2, priceCNY: 60, name: "汉堡王皇堡套餐", category: "快餐套餐", assetName: "reward-burger-meal", iconKind: .meal),
+        RewardItem(id: "300-2-6", tier: 300, step: 2, priceCNY: 60, name: "奈雪霸气芝士草莓", category: "茶饮甜点", assetName: "reward-tea", iconKind: .tea),
+        RewardItem(id: "300-3-1", tier: 300, step: 3, priceCNY: 90, name: "Wagas 轻食沙拉", category: "轻食餐食", assetName: "reward-salad", iconKind: .meal),
+        RewardItem(id: "300-3-2", tier: 300, step: 3, priceCNY: 90, name: "良子肩颈放松", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "300-3-3", tier: 300, step: 3, priceCNY: 90, name: "Nike Dri-FIT 运动 T 恤", category: "运动服饰", assetName: "reward-sportswear", iconKind: .wellness),
+        RewardItem(id: "300-3-4", tier: 300, step: 3, priceCNY: 90, name: "盒马鲜生寿司拼盘", category: "工作餐食", assetName: "reward-noodle-bento", iconKind: .meal),
+        RewardItem(id: "300-3-5", tier: 300, step: 3, priceCNY: 90, name: "超级猩猩单次体验", category: "运动课程", assetName: "reward-fitness-class", iconKind: .wellness),
+        RewardItem(id: "300-3-6", tier: 300, step: 3, priceCNY: 90, name: "MUJI 香薰精油", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "300-4-1", tier: 300, step: 4, priceCNY: 120, name: "M Stand 周末早午餐", category: "早午餐", assetName: "reward-brunch", iconKind: .meal),
+        RewardItem(id: "300-4-2", tier: 300, step: 4, priceCNY: 120, name: "超级猩猩单次课", category: "运动课程", assetName: "reward-fitness-class", iconKind: .wellness),
+        RewardItem(id: "300-4-3", tier: 300, step: 4, priceCNY: 120, name: "小米 Redmi Buds", category: "数码耳机", assetName: "reward-earbuds", iconKind: .headphones),
+        RewardItem(id: "300-4-4", tier: 300, step: 4, priceCNY: 120, name: "西贝单人正餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "300-4-5", tier: 300, step: 4, priceCNY: 120, name: "UCCA 展览门票", category: "演出展览", assetName: "reward-live-show", iconKind: .movie),
+        RewardItem(id: "300-4-6", tier: 300, step: 4, priceCNY: 120, name: "Keep 瑜伽垫", category: "运动装备", assetName: "reward-sports-accessory", iconKind: .wellness),
+        RewardItem(id: "300-5-1", tier: 300, step: 5, priceCNY: 150, name: "西贝单人正餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "300-5-2", tier: 300, step: 5, priceCNY: 150, name: "东田造型理发", category: "头发护理", assetName: "reward-haircare", iconKind: .wellness),
+        RewardItem(id: "300-5-3", tier: 300, step: 5, priceCNY: 150, name: "MUJI 桌面收纳", category: "桌面装备", assetName: "reward-desk-setup", iconKind: .keyboard),
+        RewardItem(id: "300-5-4", tier: 300, step: 5, priceCNY: 150, name: "Keychron 手托", category: "桌面装备", assetName: "reward-desk-setup", iconKind: .keyboard),
+        RewardItem(id: "300-5-5", tier: 300, step: 5, priceCNY: 150, name: "Diptyque 小蜡烛", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "300-5-6", tier: 300, step: 5, priceCNY: 150, name: "万达双人电影票", category: "电影娱乐", assetName: "reward-movie", iconKind: .movie),
+        RewardItem(id: "300-6-1", tier: 300, step: 6, priceCNY: 180, name: "泰到位足疗", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "300-6-2", tier: 300, step: 6, priceCNY: 180, name: "Diptyque 香氛蜡烛", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "300-6-3", tier: 300, step: 6, priceCNY: 180, name: "上海地铁月度通勤", category: "城市出行", assetName: "reward-city-ride", iconKind: .ride),
+        RewardItem(id: "300-6-4", tier: 300, step: 6, priceCNY: 180, name: "良子足疗按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "300-6-5", tier: 300, step: 6, priceCNY: 180, name: "Marshall 香薰蜡烛", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "300-6-6", tier: 300, step: 6, priceCNY: 180, name: "Nike 运动短裤", category: "运动服饰", assetName: "reward-sportswear", iconKind: .wellness),
+        RewardItem(id: "300-7-1", tier: 300, step: 7, priceCNY: 210, name: "盒马鲜生海鲜小火锅", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
+        RewardItem(id: "300-7-2", tier: 300, step: 7, priceCNY: 210, name: "洛斐键帽", category: "桌面装备", assetName: "reward-keycaps", iconKind: .keyboard),
+        RewardItem(id: "300-7-3", tier: 300, step: 7, priceCNY: 210, name: "UCCA 展览门票", category: "演出展览", assetName: "reward-live-show", iconKind: .movie),
+        RewardItem(id: "300-7-4", tier: 300, step: 7, priceCNY: 210, name: "Keychron 键帽", category: "桌面装备", assetName: "reward-keycaps", iconKind: .keyboard),
+        RewardItem(id: "300-7-5", tier: 300, step: 7, priceCNY: 210, name: "MAO Livehouse 预售票", category: "演出展览", assetName: "reward-live-show", iconKind: .movie),
+        RewardItem(id: "300-7-6", tier: 300, step: 7, priceCNY: 210, name: "飞利浦电动牙刷", category: "生活电器", assetName: "reward-toothbrush", iconKind: .laptop),
+        RewardItem(id: "300-8-1", tier: 300, step: 8, priceCNY: 240, name: "Lululemon 瑜伽体验", category: "运动课程", assetName: "reward-fitness-class", iconKind: .wellness),
+        RewardItem(id: "300-8-2", tier: 300, step: 8, priceCNY: 240, name: "欧莱雅护肤礼盒", category: "香氛护肤", assetName: "reward-skincare", iconKind: .beauty),
+        RewardItem(id: "300-8-3", tier: 300, step: 8, priceCNY: 240, name: "Anker 快充套装", category: "桌面装备", assetName: "reward-desk-setup", iconKind: .keyboard),
+        RewardItem(id: "300-8-4", tier: 300, step: 8, priceCNY: 240, name: "PURE 单次瑜伽课", category: "运动课程", assetName: "reward-fitness-class", iconKind: .wellness),
+        RewardItem(id: "300-8-5", tier: 300, step: 8, priceCNY: 240, name: "资生堂护肤套装", category: "香氛护肤", assetName: "reward-skincare", iconKind: .beauty),
+        RewardItem(id: "300-8-6", tier: 300, step: 8, priceCNY: 240, name: "小米体脂秤", category: "健康设备", assetName: "reward-health-scale", iconKind: .wellness),
+        RewardItem(id: "300-9-1", tier: 300, step: 9, priceCNY: 270, name: "万达双人电影夜", category: "电影娱乐", assetName: "reward-movie", iconKind: .movie),
+        RewardItem(id: "300-9-2", tier: 300, step: 9, priceCNY: 270, name: "Boxing Cat 精酿", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "300-9-3", tier: 300, step: 9, priceCNY: 270, name: "Converse 帆布鞋", category: "运动鞋履", assetName: "reward-sneakers", iconKind: .wellness),
+        RewardItem(id: "300-9-4", tier: 300, step: 9, priceCNY: 270, name: "CGV 双人电影夜", category: "电影娱乐", assetName: "reward-movie", iconKind: .movie),
+        RewardItem(id: "300-9-5", tier: 300, step: 9, priceCNY: 270, name: "Nike 运动腰包", category: "运动装备", assetName: "reward-sports-accessory", iconKind: .wellness),
+        RewardItem(id: "300-9-6", tier: 300, step: 9, priceCNY: 270, name: "Baker & Spice 双人早午餐", category: "早午餐", assetName: "reward-brunch", iconKind: .meal),
+        RewardItem(id: "300-10-1", tier: 300, step: 10, priceCNY: 300, name: "Blue Frog 晚餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "300-10-2", tier: 300, step: 10, priceCNY: 300, name: "丝域头皮护理", category: "头发护理", assetName: "reward-haircare", iconKind: .wellness),
+        RewardItem(id: "300-10-3", tier: 300, step: 10, priceCNY: 300, name: "小米空气炸锅", category: "生活电器", assetName: "reward-air-fryer", iconKind: .laptop),
+        RewardItem(id: "300-10-4", tier: 300, step: 10, priceCNY: 300, name: "Shake Shack 双人餐", category: "快餐套餐", assetName: "reward-burger-meal", iconKind: .meal),
+        RewardItem(id: "300-10-5", tier: 300, step: 10, priceCNY: 300, name: "泰到位肩颈按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "300-10-6", tier: 300, step: 10, priceCNY: 300, name: "宜家桌面灯", category: "桌面装备", assetName: "reward-desk-setup", iconKind: .keyboard),
+        RewardItem(id: "500-1-1", tier: 500, step: 1, priceCNY: 50, name: "CGV 巨幕电影票", category: "电影娱乐", assetName: "reward-movie", iconKind: .movie),
+        RewardItem(id: "500-1-2", tier: 500, step: 1, priceCNY: 50, name: "滴滴快车跨区", category: "城市出行", assetName: "reward-city-ride", iconKind: .ride),
+        RewardItem(id: "500-1-3", tier: 500, step: 1, priceCNY: 50, name: "喜茶轻食套餐", category: "茶饮甜点", assetName: "reward-tea", iconKind: .tea),
+        RewardItem(id: "500-1-4", tier: 500, step: 1, priceCNY: 50, name: "星巴克臻选咖啡", category: "咖啡饮品", assetName: "reward-coffee", iconKind: .coffee),
+        RewardItem(id: "500-1-5", tier: 500, step: 1, priceCNY: 50, name: "麦当劳双人小食", category: "快餐套餐", assetName: "reward-burger-meal", iconKind: .meal),
+        RewardItem(id: "500-1-6", tier: 500, step: 1, priceCNY: 50, name: "奈雪欧包茶饮", category: "茶饮甜点", assetName: "reward-tea", iconKind: .tea),
+        RewardItem(id: "500-2-1", tier: 500, step: 2, priceCNY: 100, name: "Shake Shack 单人餐", category: "快餐套餐", assetName: "reward-burger-meal", iconKind: .meal),
+        RewardItem(id: "500-2-2", tier: 500, step: 2, priceCNY: 100, name: "泰到位肩颈按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "500-2-3", tier: 500, step: 2, priceCNY: 100, name: "Nike 运动腰包", category: "运动装备", assetName: "reward-sports-accessory", iconKind: .wellness),
+        RewardItem(id: "500-2-4", tier: 500, step: 2, priceCNY: 100, name: "Wagas 商务午餐", category: "轻食餐食", assetName: "reward-salad", iconKind: .meal),
+        RewardItem(id: "500-2-5", tier: 500, step: 2, priceCNY: 100, name: "万达 IMAX 电影票", category: "电影娱乐", assetName: "reward-movie", iconKind: .movie),
+        RewardItem(id: "500-2-6", tier: 500, step: 2, priceCNY: 100, name: "MUJI 香薰机", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "500-3-1", tier: 500, step: 3, priceCNY: 150, name: "东田造型男士理发", category: "头发护理", assetName: "reward-haircare", iconKind: .wellness),
+        RewardItem(id: "500-3-2", tier: 500, step: 3, priceCNY: 150, name: "汉堡王双人套餐", category: "快餐套餐", assetName: "reward-burger-meal", iconKind: .meal),
+        RewardItem(id: "500-3-3", tier: 500, step: 3, priceCNY: 150, name: "宜家电脑支架", category: "桌面装备", assetName: "reward-desk-setup", iconKind: .keyboard),
+        RewardItem(id: "500-3-4", tier: 500, step: 3, priceCNY: 150, name: "西贝单人正餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "500-3-5", tier: 500, step: 3, priceCNY: 150, name: "飞利浦电动牙刷", category: "生活电器", assetName: "reward-toothbrush", iconKind: .laptop),
+        RewardItem(id: "500-3-6", tier: 500, step: 3, priceCNY: 150, name: "UCCA 展览门票", category: "演出展览", assetName: "reward-live-show", iconKind: .movie),
+        RewardItem(id: "500-4-1", tier: 500, step: 4, priceCNY: 200, name: "良子城市按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "500-4-2", tier: 500, step: 4, priceCNY: 200, name: "Jo Malone 旅行香氛", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "500-4-3", tier: 500, step: 4, priceCNY: 200, name: "Keychron 键帽", category: "桌面装备", assetName: "reward-keycaps", iconKind: .keyboard),
+        RewardItem(id: "500-4-4", tier: 500, step: 4, priceCNY: 200, name: "曼谷屋泰式按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "500-4-5", tier: 500, step: 4, priceCNY: 200, name: "洛斐键帽", category: "桌面装备", assetName: "reward-keycaps", iconKind: .keyboard),
+        RewardItem(id: "500-4-6", tier: 500, step: 4, priceCNY: 200, name: "保利剧院门票", category: "演出展览", assetName: "reward-live-show", iconKind: .movie),
+        RewardItem(id: "500-5-1", tier: 500, step: 5, priceCNY: 250, name: "Baker & Spice 双人早午餐", category: "早午餐", assetName: "reward-brunch", iconKind: .meal),
+        RewardItem(id: "500-5-2", tier: 500, step: 5, priceCNY: 250, name: "PURE 瑜伽体验课", category: "运动课程", assetName: "reward-fitness-class", iconKind: .wellness),
+        RewardItem(id: "500-5-3", tier: 500, step: 5, priceCNY: 250, name: "飞利浦电动牙刷", category: "生活电器", assetName: "reward-toothbrush", iconKind: .laptop),
+        RewardItem(id: "500-5-4", tier: 500, step: 5, priceCNY: 250, name: "Lululemon 瑜伽课", category: "运动课程", assetName: "reward-fitness-class", iconKind: .wellness),
+        RewardItem(id: "500-5-5", tier: 500, step: 5, priceCNY: 250, name: "Anker 充电套装", category: "桌面装备", assetName: "reward-desk-setup", iconKind: .keyboard),
+        RewardItem(id: "500-5-6", tier: 500, step: 5, priceCNY: 250, name: "CGV 双人电影夜", category: "电影娱乐", assetName: "reward-movie", iconKind: .movie),
+        RewardItem(id: "500-6-1", tier: 500, step: 6, priceCNY: 300, name: "王品牛排午餐", category: "牛排餐厅", assetName: "reward-steak", iconKind: .meal),
+        RewardItem(id: "500-6-2", tier: 500, step: 6, priceCNY: 300, name: "丝域头疗护理", category: "头发护理", assetName: "reward-haircare", iconKind: .wellness),
+        RewardItem(id: "500-6-3", tier: 500, step: 6, priceCNY: 300, name: "小米空气炸锅", category: "生活电器", assetName: "reward-air-fryer", iconKind: .laptop),
+        RewardItem(id: "500-6-4", tier: 500, step: 6, priceCNY: 300, name: "Blue Frog 晚餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "500-6-5", tier: 500, step: 6, priceCNY: 300, name: "Keep 智能体脂秤", category: "健康设备", assetName: "reward-health-scale", iconKind: .wellness),
+        RewardItem(id: "500-6-6", tier: 500, step: 6, priceCNY: 300, name: "Boxing Cat 精酿", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "500-7-1", tier: 500, step: 7, priceCNY: 350, name: "MAO Livehouse 门票", category: "演出展览", assetName: "reward-live-show", iconKind: .movie),
+        RewardItem(id: "500-7-2", tier: 500, step: 7, priceCNY: 350, name: "Nike 通勤双肩包", category: "运动装备", assetName: "reward-sports-accessory", iconKind: .wellness),
+        RewardItem(id: "500-7-3", tier: 500, step: 7, priceCNY: 350, name: "闪迪移动固态硬盘", category: "数码装备", assetName: "reward-storage-drive", iconKind: .keyboard),
+        RewardItem(id: "500-7-4", tier: 500, step: 7, priceCNY: 350, name: "Adidas 运动鞋", category: "运动鞋履", assetName: "reward-sneakers", iconKind: .wellness),
+        RewardItem(id: "500-7-5", tier: 500, step: 7, priceCNY: 350, name: "Keychron 机械键盘", category: "桌面装备", assetName: "reward-keyboard", iconKind: .keyboard),
+        RewardItem(id: "500-7-6", tier: 500, step: 7, priceCNY: 350, name: "大渔铁板烧单人餐", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
+        RewardItem(id: "500-8-1", tier: 500, step: 8, priceCNY: 400, name: "罗技 MX Master 鼠标", category: "桌面装备", assetName: "reward-mouse", iconKind: .mouse),
+        RewardItem(id: "500-8-2", tier: 500, step: 8, priceCNY: 400, name: "大渔铁板烧双人餐", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
+        RewardItem(id: "500-8-3", tier: 500, step: 8, priceCNY: 400, name: "亚朵酒店钟点房", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "500-8-4", tier: 500, step: 8, priceCNY: 400, name: "华为 Watch Fit", category: "健康设备", assetName: "reward-health-scale", iconKind: .wellness),
+        RewardItem(id: "500-8-5", tier: 500, step: 8, priceCNY: 400, name: "东田染发护理", category: "头发护理", assetName: "reward-haircare", iconKind: .wellness),
+        RewardItem(id: "500-8-6", tier: 500, step: 8, priceCNY: 400, name: "小米 4K 显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "500-9-1", tier: 500, step: 9, priceCNY: 450, name: "Maison Margiela 香水", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "500-9-2", tier: 500, step: 9, priceCNY: 450, name: "泰到位深度 SPA", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "500-9-3", tier: 500, step: 9, priceCNY: 450, name: "Adidas Ultraboost", category: "运动鞋履", assetName: "reward-sneakers", iconKind: .wellness),
+        RewardItem(id: "500-9-4", tier: 500, step: 9, priceCNY: 450, name: "Jo Malone 香水", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "500-9-5", tier: 500, step: 9, priceCNY: 450, name: "Bose 便携音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .headphones),
+        RewardItem(id: "500-9-6", tier: 500, step: 9, priceCNY: 450, name: "香格里拉自助餐", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
+        RewardItem(id: "500-10-1", tier: 500, step: 10, priceCNY: 500, name: "Wolfgang's Steakhouse 单人餐", category: "牛排餐厅", assetName: "reward-steak", iconKind: .meal),
+        RewardItem(id: "500-10-2", tier: 500, step: 10, priceCNY: 500, name: "Ergotron 显示器支架", category: "桌面装备", assetName: "reward-desk-setup", iconKind: .keyboard),
+        RewardItem(id: "500-10-3", tier: 500, step: 10, priceCNY: 500, name: "高铁城际往返票", category: "城际出行", assetName: "reward-train", iconKind: .ride),
+        RewardItem(id: "500-10-4", tier: 500, step: 10, priceCNY: 500, name: "Sony LinkBuds", category: "数码耳机", assetName: "reward-earbuds", iconKind: .headphones),
+        RewardItem(id: "500-10-5", tier: 500, step: 10, priceCNY: 500, name: "大董单人餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "500-10-6", tier: 500, step: 10, priceCNY: 500, name: "亚朵酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "1000-1-1", tier: 1000, step: 1, priceCNY: 100, name: "泰到位肩颈按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "1000-1-2", tier: 1000, step: 1, priceCNY: 100, name: "Wagas 商务午餐", category: "轻食餐食", assetName: "reward-salad", iconKind: .meal),
+        RewardItem(id: "1000-1-3", tier: 1000, step: 1, priceCNY: 100, name: "IMAX 电影票", category: "电影娱乐", assetName: "reward-movie", iconKind: .movie),
+        RewardItem(id: "1000-1-4", tier: 1000, step: 1, priceCNY: 100, name: "Shake Shack 单人餐", category: "快餐套餐", assetName: "reward-burger-meal", iconKind: .meal),
+        RewardItem(id: "1000-1-5", tier: 1000, step: 1, priceCNY: 100, name: "Nike 运动腰包", category: "运动装备", assetName: "reward-sports-accessory", iconKind: .wellness),
+        RewardItem(id: "1000-1-6", tier: 1000, step: 1, priceCNY: 100, name: "星巴克臻选咖啡", category: "咖啡饮品", assetName: "reward-coffee", iconKind: .coffee),
+        RewardItem(id: "1000-2-1", tier: 1000, step: 2, priceCNY: 200, name: "曼谷屋泰式按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "1000-2-2", tier: 1000, step: 2, priceCNY: 200, name: "Keychron 机械键盘", category: "桌面装备", assetName: "reward-keyboard", iconKind: .keyboard),
+        RewardItem(id: "1000-2-3", tier: 1000, step: 2, priceCNY: 200, name: "笑果脱口秀门票", category: "演出展览", assetName: "reward-live-show", iconKind: .movie),
+        RewardItem(id: "1000-2-4", tier: 1000, step: 2, priceCNY: 200, name: "良子城市按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "1000-2-5", tier: 1000, step: 2, priceCNY: 200, name: "Jo Malone 旅行香氛", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "1000-2-6", tier: 1000, step: 2, priceCNY: 200, name: "保利剧院门票", category: "演出展览", assetName: "reward-live-show", iconKind: .movie),
+        RewardItem(id: "1000-3-1", tier: 1000, step: 3, priceCNY: 300, name: "Blue Frog 晚餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "1000-3-2", tier: 1000, step: 3, priceCNY: 300, name: "丝域头疗护理", category: "头发护理", assetName: "reward-haircare", iconKind: .wellness),
+        RewardItem(id: "1000-3-3", tier: 1000, step: 3, priceCNY: 300, name: "小米空气炸锅", category: "生活电器", assetName: "reward-air-fryer", iconKind: .laptop),
+        RewardItem(id: "1000-3-4", tier: 1000, step: 3, priceCNY: 300, name: "王品牛排午餐", category: "牛排餐厅", assetName: "reward-steak", iconKind: .meal),
+        RewardItem(id: "1000-3-5", tier: 1000, step: 3, priceCNY: 300, name: "Keep 智能体脂秤", category: "健康设备", assetName: "reward-health-scale", iconKind: .wellness),
+        RewardItem(id: "1000-3-6", tier: 1000, step: 3, priceCNY: 300, name: "MUJI 空气循环扇", category: "生活电器", assetName: "reward-home-appliance", iconKind: .laptop),
+        RewardItem(id: "1000-4-1", tier: 1000, step: 4, priceCNY: 400, name: "罗技 MX Master 3S", category: "桌面装备", assetName: "reward-mouse", iconKind: .mouse),
+        RewardItem(id: "1000-4-2", tier: 1000, step: 4, priceCNY: 400, name: "炉鱼双人餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "1000-4-3", tier: 1000, step: 4, priceCNY: 400, name: "华为 Watch Fit", category: "健康设备", assetName: "reward-health-scale", iconKind: .wellness),
+        RewardItem(id: "1000-4-4", tier: 1000, step: 4, priceCNY: 400, name: "大渔铁板烧双人餐", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
+        RewardItem(id: "1000-4-5", tier: 1000, step: 4, priceCNY: 400, name: "东田染发护理", category: "头发护理", assetName: "reward-haircare", iconKind: .wellness),
+        RewardItem(id: "1000-4-6", tier: 1000, step: 4, priceCNY: 400, name: "小米 4K 显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "1000-5-1", tier: 1000, step: 5, priceCNY: 500, name: "上海杭州高铁往返", category: "城际出行", assetName: "reward-train", iconKind: .ride),
+        RewardItem(id: "1000-5-2", tier: 1000, step: 5, priceCNY: 500, name: "Jo Malone 香水", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "1000-5-3", tier: 1000, step: 5, priceCNY: 500, name: "Humanscale 脚踏", category: "桌面装备", assetName: "reward-desk-setup", iconKind: .keyboard),
+        RewardItem(id: "1000-5-4", tier: 1000, step: 5, priceCNY: 500, name: "Sony LinkBuds", category: "数码耳机", assetName: "reward-earbuds", iconKind: .headphones),
+        RewardItem(id: "1000-5-5", tier: 1000, step: 5, priceCNY: 500, name: "大董单人餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "1000-5-6", tier: 1000, step: 5, priceCNY: 500, name: "亚朵酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "1000-6-1", tier: 1000, step: 6, priceCNY: 600, name: "亚朵酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "1000-6-2", tier: 1000, step: 6, priceCNY: 600, name: "Nike Pegasus 跑鞋", category: "运动鞋履", assetName: "reward-sneakers", iconKind: .wellness),
+        RewardItem(id: "1000-6-3", tier: 1000, step: 6, priceCNY: 600, name: "大董双人简餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "1000-6-4", tier: 1000, step: 6, priceCNY: 600, name: "戴尔显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "1000-6-5", tier: 1000, step: 6, priceCNY: 600, name: "Bose QuietComfort 耳机", category: "数码耳机", assetName: "reward-headphones", iconKind: .headphones),
+        RewardItem(id: "1000-6-6", tier: 1000, step: 6, priceCNY: 600, name: "Coach 小号托特", category: "通勤包袋", assetName: "reward-bag", iconKind: .beauty),
+        RewardItem(id: "1000-7-1", tier: 1000, step: 7, priceCNY: 700, name: "桔子水晶酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "1000-7-2", tier: 1000, step: 7, priceCNY: 700, name: "Beats Studio Buds", category: "数码耳机", assetName: "reward-earbuds", iconKind: .headphones),
+        RewardItem(id: "1000-7-3", tier: 1000, step: 7, priceCNY: 700, name: "东田染发护理", category: "头发护理", assetName: "reward-haircare", iconKind: .wellness),
+        RewardItem(id: "1000-7-4", tier: 1000, step: 7, priceCNY: 700, name: "Adidas Ultraboost", category: "运动鞋履", assetName: "reward-sneakers", iconKind: .wellness),
+        RewardItem(id: "1000-7-5", tier: 1000, step: 7, priceCNY: 700, name: "德龙咖啡机", category: "生活电器", assetName: "reward-coffee-machine", iconKind: .laptop),
+        RewardItem(id: "1000-7-6", tier: 1000, step: 7, priceCNY: 700, name: "希尔顿欢朋一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "1000-8-1", tier: 1000, step: 8, priceCNY: 800, name: "泰到位高端 SPA", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "1000-8-2", tier: 1000, step: 8, priceCNY: 800, name: "携程周边一日游", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "1000-8-3", tier: 1000, step: 8, priceCNY: 800, name: "小米 4K 显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "1000-8-4", tier: 1000, step: 8, priceCNY: 800, name: "AirPods Pro", category: "数码耳机", assetName: "reward-airpods", iconKind: .headphones),
+        RewardItem(id: "1000-8-5", tier: 1000, step: 8, priceCNY: 800, name: "保友金豪人体工学椅", category: "桌面装备", assetName: "reward-office-chair", iconKind: .keyboard),
+        RewardItem(id: "1000-8-6", tier: 1000, step: 8, priceCNY: 800, name: "香格里拉自助餐", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
+        RewardItem(id: "1000-9-1", tier: 1000, step: 9, priceCNY: 900, name: "希尔顿欢朋一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "1000-9-2", tier: 1000, step: 9, priceCNY: 900, name: "Sony LinkBuds", category: "数码耳机", assetName: "reward-earbuds", iconKind: .headphones),
+        RewardItem(id: "1000-9-3", tier: 1000, step: 9, priceCNY: 900, name: "香格里拉自助餐", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
+        RewardItem(id: "1000-9-4", tier: 1000, step: 9, priceCNY: 900, name: "Bose QuietComfort 耳机", category: "数码耳机", assetName: "reward-headphones", iconKind: .headphones),
+        RewardItem(id: "1000-9-5", tier: 1000, step: 9, priceCNY: 900, name: "亚朵周末房", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "1000-9-6", tier: 1000, step: 9, priceCNY: 900, name: "戴森 Supersonic 吹风机", category: "生活电器", assetName: "reward-hair-dryer", iconKind: .laptop),
+        RewardItem(id: "1000-10-1", tier: 1000, step: 10, priceCNY: 1000, name: "Bose QuietComfort 耳机", category: "数码耳机", assetName: "reward-headphones", iconKind: .headphones),
+        RewardItem(id: "1000-10-2", tier: 1000, step: 10, priceCNY: 1000, name: "西昊人体工学椅", category: "桌面装备", assetName: "reward-office-chair", iconKind: .keyboard),
+        RewardItem(id: "1000-10-3", tier: 1000, step: 10, priceCNY: 1000, name: "亚朵周末房", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "1000-10-4", tier: 1000, step: 10, priceCNY: 1000, name: "AirPods Pro", category: "数码耳机", assetName: "reward-airpods", iconKind: .headphones),
+        RewardItem(id: "1000-10-5", tier: 1000, step: 10, priceCNY: 1000, name: "德龙咖啡机", category: "生活电器", assetName: "reward-coffee-machine", iconKind: .laptop),
+        RewardItem(id: "1000-10-6", tier: 1000, step: 10, priceCNY: 1000, name: "携程周边两日游", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "2000-1-1", tier: 2000, step: 1, priceCNY: 200, name: "Keychron 机械键盘", category: "桌面装备", assetName: "reward-keyboard", iconKind: .keyboard),
+        RewardItem(id: "2000-1-2", tier: 2000, step: 1, priceCNY: 200, name: "良子城市按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "2000-1-3", tier: 2000, step: 1, priceCNY: 200, name: "保利剧院门票", category: "演出展览", assetName: "reward-live-show", iconKind: .movie),
+        RewardItem(id: "2000-1-4", tier: 2000, step: 1, priceCNY: 200, name: "Jo Malone 旅行香氛", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "2000-1-5", tier: 2000, step: 1, priceCNY: 200, name: "洛斐键帽", category: "桌面装备", assetName: "reward-keycaps", iconKind: .keyboard),
+        RewardItem(id: "2000-1-6", tier: 2000, step: 1, priceCNY: 200, name: "曼谷屋泰式按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "2000-2-1", tier: 2000, step: 2, priceCNY: 400, name: "罗技 MX Master 3S", category: "桌面装备", assetName: "reward-mouse", iconKind: .mouse),
+        RewardItem(id: "2000-2-2", tier: 2000, step: 2, priceCNY: 400, name: "Blue Frog 双人晚餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "2000-2-3", tier: 2000, step: 2, priceCNY: 400, name: "华为 Watch Fit", category: "健康设备", assetName: "reward-health-scale", iconKind: .wellness),
+        RewardItem(id: "2000-2-4", tier: 2000, step: 2, priceCNY: 400, name: "小米 4K 显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "2000-2-5", tier: 2000, step: 2, priceCNY: 400, name: "大渔铁板烧双人餐", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
+        RewardItem(id: "2000-2-6", tier: 2000, step: 2, priceCNY: 400, name: "东田染发护理", category: "头发护理", assetName: "reward-haircare", iconKind: .wellness),
+        RewardItem(id: "2000-3-1", tier: 2000, step: 3, priceCNY: 600, name: "亚朵酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "2000-3-2", tier: 2000, step: 3, priceCNY: 600, name: "Nike Pegasus 跑鞋", category: "运动鞋履", assetName: "reward-sneakers", iconKind: .wellness),
+        RewardItem(id: "2000-3-3", tier: 2000, step: 3, priceCNY: 600, name: "大董双人简餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "2000-3-4", tier: 2000, step: 3, priceCNY: 600, name: "Bose QuietComfort 耳机", category: "数码耳机", assetName: "reward-headphones", iconKind: .headphones),
+        RewardItem(id: "2000-3-5", tier: 2000, step: 3, priceCNY: 600, name: "Coach 小号托特", category: "通勤包袋", assetName: "reward-bag", iconKind: .beauty),
+        RewardItem(id: "2000-3-6", tier: 2000, step: 3, priceCNY: 600, name: "戴尔显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "2000-4-1", tier: 2000, step: 4, priceCNY: 800, name: "泰到位高端 SPA", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "2000-4-2", tier: 2000, step: 4, priceCNY: 800, name: "携程周边一日游", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "2000-4-3", tier: 2000, step: 4, priceCNY: 800, name: "小米 4K 显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "2000-4-4", tier: 2000, step: 4, priceCNY: 800, name: "AirPods Pro", category: "数码耳机", assetName: "reward-airpods", iconKind: .headphones),
+        RewardItem(id: "2000-4-5", tier: 2000, step: 4, priceCNY: 800, name: "香格里拉自助餐", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
+        RewardItem(id: "2000-4-6", tier: 2000, step: 4, priceCNY: 800, name: "保友金豪人体工学椅", category: "桌面装备", assetName: "reward-office-chair", iconKind: .keyboard),
+        RewardItem(id: "2000-5-1", tier: 2000, step: 5, priceCNY: 1000, name: "Bose QuietComfort 耳机", category: "数码耳机", assetName: "reward-headphones", iconKind: .headphones),
+        RewardItem(id: "2000-5-2", tier: 2000, step: 5, priceCNY: 1000, name: "西昊人体工学椅", category: "桌面装备", assetName: "reward-office-chair", iconKind: .keyboard),
+        RewardItem(id: "2000-5-3", tier: 2000, step: 5, priceCNY: 1000, name: "希尔顿欢朋一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "2000-5-4", tier: 2000, step: 5, priceCNY: 1000, name: "德龙咖啡机", category: "生活电器", assetName: "reward-coffee-machine", iconKind: .laptop),
+        RewardItem(id: "2000-5-5", tier: 2000, step: 5, priceCNY: 1000, name: "AirPods Pro", category: "数码耳机", assetName: "reward-airpods", iconKind: .headphones),
+        RewardItem(id: "2000-5-6", tier: 2000, step: 5, priceCNY: 1000, name: "亚朵周末房", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "2000-6-1", tier: 2000, step: 6, priceCNY: 1200, name: "Jo Malone 香水", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "2000-6-2", tier: 2000, step: 6, priceCNY: 1200, name: "桔子水晶酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "2000-6-3", tier: 2000, step: 6, priceCNY: 1200, name: "德龙咖啡机", category: "生活电器", assetName: "reward-coffee-machine", iconKind: .laptop),
+        RewardItem(id: "2000-6-4", tier: 2000, step: 6, priceCNY: 1200, name: "戴尔 UltraSharp 显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "2000-6-5", tier: 2000, step: 6, priceCNY: 1200, name: "Coach 通勤包", category: "通勤包袋", assetName: "reward-bag", iconKind: .beauty),
+        RewardItem(id: "2000-6-6", tier: 2000, step: 6, priceCNY: 1200, name: "希尔顿酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "2000-7-1", tier: 2000, step: 7, priceCNY: 1400, name: "Ruth's Chris 双人晚餐", category: "牛排餐厅", assetName: "reward-steak", iconKind: .meal),
+        RewardItem(id: "2000-7-2", tier: 2000, step: 7, priceCNY: 1400, name: "上海北京机票", category: "航空出行", assetName: "reward-flight", iconKind: .ride),
+        RewardItem(id: "2000-7-3", tier: 2000, step: 7, priceCNY: 1400, name: "戴尔 UltraSharp 显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "2000-7-4", tier: 2000, step: 7, priceCNY: 1400, name: "AirPods Pro", category: "数码耳机", assetName: "reward-airpods", iconKind: .headphones),
+        RewardItem(id: "2000-7-5", tier: 2000, step: 7, priceCNY: 1400, name: "保友金豪人体工学椅", category: "桌面装备", assetName: "reward-office-chair", iconKind: .keyboard),
+        RewardItem(id: "2000-7-6", tier: 2000, step: 7, priceCNY: 1400, name: "携程周边两日游", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "2000-8-1", tier: 2000, step: 8, priceCNY: 1600, name: "希尔顿酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "2000-8-2", tier: 2000, step: 8, priceCNY: 1600, name: "AirPods Pro", category: "数码耳机", assetName: "reward-airpods", iconKind: .headphones),
+        RewardItem(id: "2000-8-3", tier: 2000, step: 8, priceCNY: 1600, name: "海马体城市写真", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "2000-8-4", tier: 2000, step: 8, priceCNY: 1600, name: "Sony WH-1000XM 耳机", category: "数码耳机", assetName: "reward-headphones", iconKind: .headphones),
+        RewardItem(id: "2000-8-5", tier: 2000, step: 8, priceCNY: 1600, name: "戴森 Supersonic 吹风机", category: "生活电器", assetName: "reward-hair-dryer", iconKind: .laptop),
+        RewardItem(id: "2000-8-6", tier: 2000, step: 8, priceCNY: 1600, name: "Keychron Q 系列键盘", category: "桌面装备", assetName: "reward-keyboard", iconKind: .keyboard),
+        RewardItem(id: "2000-9-1", tier: 2000, step: 9, priceCNY: 1800, name: "Insta360 GO 相机", category: "影像设备", assetName: "reward-camera", iconKind: .camera),
+        RewardItem(id: "2000-9-2", tier: 2000, step: 9, priceCNY: 1800, name: "携程周边两日游", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "2000-9-3", tier: 2000, step: 9, priceCNY: 1800, name: "保友金豪人体工学椅", category: "桌面装备", assetName: "reward-office-chair", iconKind: .keyboard),
+        RewardItem(id: "2000-9-4", tier: 2000, step: 9, priceCNY: 1800, name: "DJI Osmo Action", category: "影像设备", assetName: "reward-camera", iconKind: .camera),
+        RewardItem(id: "2000-9-5", tier: 2000, step: 9, priceCNY: 1800, name: "Marshall 音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .headphones),
+        RewardItem(id: "2000-9-6", tier: 2000, step: 9, priceCNY: 1800, name: "希尔顿酒店周末房", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "2000-10-1", tier: 2000, step: 10, priceCNY: 2000, name: "Club Med 周末套餐", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "2000-10-2", tier: 2000, step: 10, priceCNY: 2000, name: "Coach 通勤包", category: "通勤包袋", assetName: "reward-bag", iconKind: .beauty),
+        RewardItem(id: "2000-10-3", tier: 2000, step: 10, priceCNY: 2000, name: "极米家用投影仪", category: "影音设备", assetName: "reward-projector", iconKind: .laptop),
+        RewardItem(id: "2000-10-4", tier: 2000, step: 10, priceCNY: 2000, name: "iPad mini", category: "数码装备", assetName: "reward-tablet", iconKind: .laptop),
+        RewardItem(id: "2000-10-5", tier: 2000, step: 10, priceCNY: 2000, name: "Sony WH-1000XM 耳机", category: "数码耳机", assetName: "reward-headphones", iconKind: .headphones),
+        RewardItem(id: "2000-10-6", tier: 2000, step: 10, priceCNY: 2000, name: "海马体旅拍", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "3000-1-1", tier: 3000, step: 1, priceCNY: 300, name: "Blue Frog 晚餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "3000-1-2", tier: 3000, step: 1, priceCNY: 300, name: "丝域头疗护理", category: "头发护理", assetName: "reward-haircare", iconKind: .wellness),
+        RewardItem(id: "3000-1-3", tier: 3000, step: 1, priceCNY: 300, name: "小米空气炸锅", category: "生活电器", assetName: "reward-air-fryer", iconKind: .laptop),
+        RewardItem(id: "3000-1-4", tier: 3000, step: 1, priceCNY: 300, name: "王品牛排午餐", category: "牛排餐厅", assetName: "reward-steak", iconKind: .meal),
+        RewardItem(id: "3000-1-5", tier: 3000, step: 1, priceCNY: 300, name: "Shake Shack 双人餐", category: "快餐套餐", assetName: "reward-burger-meal", iconKind: .meal),
+        RewardItem(id: "3000-1-6", tier: 3000, step: 1, priceCNY: 300, name: "泰到位肩颈按摩", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "3000-2-1", tier: 3000, step: 2, priceCNY: 600, name: "亚朵酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "3000-2-2", tier: 3000, step: 2, priceCNY: 600, name: "Nike Pegasus 跑鞋", category: "运动鞋履", assetName: "reward-sneakers", iconKind: .wellness),
+        RewardItem(id: "3000-2-3", tier: 3000, step: 2, priceCNY: 600, name: "大董双人简餐", category: "餐厅正餐", assetName: "reward-restaurant-meal", iconKind: .meal),
+        RewardItem(id: "3000-2-4", tier: 3000, step: 2, priceCNY: 600, name: "Bose QuietComfort 耳机", category: "数码耳机", assetName: "reward-headphones", iconKind: .headphones),
+        RewardItem(id: "3000-2-5", tier: 3000, step: 2, priceCNY: 600, name: "戴尔显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "3000-2-6", tier: 3000, step: 2, priceCNY: 600, name: "Coach 小号托特", category: "通勤包袋", assetName: "reward-bag", iconKind: .beauty),
+        RewardItem(id: "3000-3-1", tier: 3000, step: 3, priceCNY: 900, name: "希尔顿欢朋一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "3000-3-2", tier: 3000, step: 3, priceCNY: 900, name: "Sony LinkBuds", category: "数码耳机", assetName: "reward-earbuds", iconKind: .headphones),
+        RewardItem(id: "3000-3-3", tier: 3000, step: 3, priceCNY: 900, name: "香格里拉自助餐", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
+        RewardItem(id: "3000-3-4", tier: 3000, step: 3, priceCNY: 900, name: "AirPods Pro", category: "数码耳机", assetName: "reward-airpods", iconKind: .headphones),
+        RewardItem(id: "3000-3-5", tier: 3000, step: 3, priceCNY: 900, name: "亚朵周末房", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "3000-3-6", tier: 3000, step: 3, priceCNY: 900, name: "戴森 Supersonic 吹风机", category: "生活电器", assetName: "reward-hair-dryer", iconKind: .laptop),
+        RewardItem(id: "3000-4-1", tier: 3000, step: 4, priceCNY: 1200, name: "Jo Malone 香水", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
+        RewardItem(id: "3000-4-2", tier: 3000, step: 4, priceCNY: 1200, name: "桔子水晶酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "3000-4-3", tier: 3000, step: 4, priceCNY: 1200, name: "德龙咖啡机", category: "生活电器", assetName: "reward-coffee-machine", iconKind: .laptop),
+        RewardItem(id: "3000-4-4", tier: 3000, step: 4, priceCNY: 1200, name: "戴尔 UltraSharp 显示器", category: "桌面装备", assetName: "reward-monitor", iconKind: .keyboard),
+        RewardItem(id: "3000-4-5", tier: 3000, step: 4, priceCNY: 1200, name: "Coach 通勤包", category: "通勤包袋", assetName: "reward-bag", iconKind: .beauty),
+        RewardItem(id: "3000-4-6", tier: 3000, step: 4, priceCNY: 1200, name: "希尔顿酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "3000-5-1", tier: 3000, step: 5, priceCNY: 1500, name: "希尔顿酒店一晚", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "3000-5-2", tier: 3000, step: 5, priceCNY: 1500, name: "Keychron Q 系列键盘", category: "桌面装备", assetName: "reward-keyboard", iconKind: .keyboard),
+        RewardItem(id: "3000-5-3", tier: 3000, step: 5, priceCNY: 1500, name: "泰到位高端 SPA", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
+        RewardItem(id: "3000-5-4", tier: 3000, step: 5, priceCNY: 1500, name: "Sony WH-1000XM 耳机", category: "数码耳机", assetName: "reward-headphones", iconKind: .headphones),
+        RewardItem(id: "3000-5-5", tier: 3000, step: 5, priceCNY: 1500, name: "保友金豪人体工学椅", category: "桌面装备", assetName: "reward-office-chair", iconKind: .keyboard),
+        RewardItem(id: "3000-5-6", tier: 3000, step: 5, priceCNY: 1500, name: "海马体城市写真", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "3000-6-1", tier: 3000, step: 6, priceCNY: 1800, name: "Insta360 GO 相机", category: "影像设备", assetName: "reward-camera", iconKind: .camera),
+        RewardItem(id: "3000-6-2", tier: 3000, step: 6, priceCNY: 1800, name: "携程周边两日游", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "3000-6-3", tier: 3000, step: 6, priceCNY: 1800, name: "保友金豪人体工学椅", category: "桌面装备", assetName: "reward-office-chair", iconKind: .keyboard),
+        RewardItem(id: "3000-6-4", tier: 3000, step: 6, priceCNY: 1800, name: "DJI Osmo Action", category: "影像设备", assetName: "reward-camera", iconKind: .camera),
+        RewardItem(id: "3000-6-5", tier: 3000, step: 6, priceCNY: 1800, name: "Marshall 音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .headphones),
+        RewardItem(id: "3000-6-6", tier: 3000, step: 6, priceCNY: 1800, name: "希尔顿周末房", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "3000-7-1", tier: 3000, step: 7, priceCNY: 2100, name: "国内往返机票", category: "航空出行", assetName: "reward-flight", iconKind: .ride),
+        RewardItem(id: "3000-7-2", tier: 3000, step: 7, priceCNY: 2100, name: "Marshall 音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .headphones),
+        RewardItem(id: "3000-7-3", tier: 3000, step: 7, priceCNY: 2100, name: "安缦周边餐饮体验", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "3000-7-4", tier: 3000, step: 7, priceCNY: 2100, name: "Club Med 周末套餐", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "3000-7-5", tier: 3000, step: 7, priceCNY: 2100, name: "Coach 通勤包", category: "通勤包袋", assetName: "reward-bag", iconKind: .beauty),
+        RewardItem(id: "3000-7-6", tier: 3000, step: 7, priceCNY: 2100, name: "极米家用投影仪", category: "影音设备", assetName: "reward-projector", iconKind: .laptop),
+        RewardItem(id: "3000-8-1", tier: 3000, step: 8, priceCNY: 2400, name: "大疆 Osmo Pocket 3", category: "影像设备", assetName: "reward-camera", iconKind: .camera),
+        RewardItem(id: "3000-8-2", tier: 3000, step: 8, priceCNY: 2400, name: "米家空气净化器", category: "生活电器", assetName: "reward-air-purifier", iconKind: .laptop),
+        RewardItem(id: "3000-8-3", tier: 3000, step: 8, priceCNY: 2400, name: "海马体旅拍", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "3000-8-4", tier: 3000, step: 8, priceCNY: 2400, name: "PlayStation 5 Slim", category: "游戏数码", assetName: "reward-game-console", iconKind: .movie),
+        RewardItem(id: "3000-8-5", tier: 3000, step: 8, priceCNY: 2400, name: "戴森 Supersonic 吹风机", category: "生活电器", assetName: "reward-hair-dryer", iconKind: .laptop),
+        RewardItem(id: "3000-8-6", tier: 3000, step: 8, priceCNY: 2400, name: "希尔顿度假套餐", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "3000-9-1", tier: 3000, step: 9, priceCNY: 2700, name: "PlayStation 5 Slim", category: "游戏数码", assetName: "reward-game-console", iconKind: .movie),
+        RewardItem(id: "3000-9-2", tier: 3000, step: 9, priceCNY: 2700, name: "携程双人周末游", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
+        RewardItem(id: "3000-9-3", tier: 3000, step: 9, priceCNY: 2700, name: "德龙全自动咖啡机", category: "生活电器", assetName: "reward-coffee-machine", iconKind: .laptop),
+        RewardItem(id: "3000-9-4", tier: 3000, step: 9, priceCNY: 2700, name: "大疆 Osmo Pocket 3", category: "影像设备", assetName: "reward-camera", iconKind: .camera),
+        RewardItem(id: "3000-9-5", tier: 3000, step: 9, priceCNY: 2700, name: "iPad mini", category: "数码装备", assetName: "reward-tablet", iconKind: .laptop),
+        RewardItem(id: "3000-9-6", tier: 3000, step: 9, priceCNY: 2700, name: "米家空气净化器", category: "生活电器", assetName: "reward-air-purifier", iconKind: .laptop),
+        RewardItem(id: "3000-10-1", tier: 3000, step: 10, priceCNY: 3000, name: "iPad mini", category: "数码装备", assetName: "reward-tablet", iconKind: .laptop),
+        RewardItem(id: "3000-10-2", tier: 3000, step: 10, priceCNY: 3000, name: "戴森 Supersonic 吹风机", category: "生活电器", assetName: "reward-hair-dryer", iconKind: .laptop),
+        RewardItem(id: "3000-10-3", tier: 3000, step: 10, priceCNY: 3000, name: "希尔顿度假两日游", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
+        RewardItem(id: "3000-10-4", tier: 3000, step: 10, priceCNY: 3000, name: "大疆 Osmo Pocket 3", category: "影像设备", assetName: "reward-camera", iconKind: .camera),
+        RewardItem(id: "3000-10-5", tier: 3000, step: 10, priceCNY: 3000, name: "PlayStation 5 Slim", category: "游戏数码", assetName: "reward-game-console", iconKind: .movie),
+        RewardItem(id: "3000-10-6", tier: 3000, step: 10, priceCNY: 3000, name: "德龙全自动咖啡机", category: "生活电器", assetName: "reward-coffee-machine", iconKind: .laptop)
     ]
 }
 
-private enum SalaryTier: String, Sendable {
-    case low
-    case mid
-    case high
-
-    init(dailyIncomeCNY: Double) {
-        if dailyIncomeCNY < 500 {
-            self = .low
-        } else if dailyIncomeCNY <= 1500 {
-            self = .mid
-        } else {
-            self = .high
-        }
-    }
-}
-
-private enum ProgressBucket: String, Sendable {
-    case start
-    case early
-    case morning
-    case noon
-    case afternoon
-    case late
-    case done
-
-    init(progress: Double) {
-        switch progress {
-        case ..<0.06:
-            self = .start
-        case ..<0.14:
-            self = .early
-        case ..<0.28:
-            self = .morning
-        case ..<0.45:
-            self = .noon
-        case ..<0.68:
-            self = .afternoon
-        case ..<0.90:
-            self = .late
-        default:
-            self = .done
-        }
-    }
-}
-
 private struct RewardItem: Sendable {
-    var name: String
+    var id: String
+    var tier: Int
+    var step: Int
     var priceCNY: Double
-    var unit: String
+    var name: String
+    var category: String
+    var assetName: String
     var iconKind: RewardIconKind
-    var tiers: [SalaryTier]
-    var buckets: [ProgressBucket]
-    var titles: [String]
-    var details: [String]
-
-    init(_ name: String, _ priceCNY: Double, _ unit: String, _ iconKind: RewardIconKind, _ tiers: [SalaryTier], _ buckets: [ProgressBucket], _ titles: [String], _ details: [String]) {
-        self.name = name
-        self.priceCNY = priceCNY
-        self.unit = unit
-        self.iconKind = iconKind
-        self.tiers = tiers
-        self.buckets = buckets
-        self.titles = titles
-        self.details = details
-    }
-
-    func detail(count: Int, seed: String) -> String {
-        let phrase = "\(count)\(unit)\(name)"
-        let index = Self.stableIndex(key: seed, count: details.count)
-        return details[index].replacingOccurrences(of: "%@", with: phrase)
-    }
-
-    private static func stableIndex(key: String, count: Int) -> Int {
-        guard count > 0 else { return 0 }
-        var hash = 5381
-        for scalar in key.unicodeScalars {
-            hash = ((hash << 5) &+ hash) &+ Int(scalar.value)
-        }
-        return abs(hash) % count
-    }
 }

@@ -29,7 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func configurePanel() {
         let panel = MoneyTodayPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 334, height: 456),
+            contentRect: NSRect(x: 0, y: 0, width: 392, height: 560),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = MoneyFlowIcon.makeStatusImage()
         item.button?.image?.isTemplate = true
-        item.button?.toolTip = "MoneyToday"
+        item.button?.toolTip = "窝囊费查看器 MoneyToday"
         item.button?.target = self
         item.button?.action = #selector(togglePopover(_:))
         statusItem = item
@@ -76,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let originY = screenFrame.minY - panelSize.height - 6
 
         panel.setFrameOrigin(NSPoint(x: originX, y: originY))
+        viewModel.setPanelVisible(true)
         panel.orderFrontRegardless()
         panel.makeKey()
         installOutsideClickMonitor()
@@ -83,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func hidePanel() {
         panel?.orderOut(nil)
+        viewModel.setPanelVisible(false)
         if let outsideClickMonitor {
             NSEvent.removeMonitor(outsideClickMonitor)
             self.outsideClickMonitor = nil

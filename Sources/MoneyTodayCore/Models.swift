@@ -21,6 +21,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var workEnd: TimeOfDay
     public var launchAtLogin: Bool
     public var testMode: Bool
+    public var selectedPeriod: PeriodKind
+    public var hideDashboardAmounts: Bool
+    public var hideSettingsAmounts: Bool
+    public var customWeekendOverrides: [String: Bool]
 
     public init(
         annualSalary: Double = 0,
@@ -29,7 +33,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
         workStart: TimeOfDay = .defaultStart,
         workEnd: TimeOfDay = .defaultEnd,
         launchAtLogin: Bool = false,
-        testMode: Bool = false
+        testMode: Bool = false,
+        selectedPeriod: PeriodKind = .day,
+        hideDashboardAmounts: Bool = false,
+        hideSettingsAmounts: Bool = false,
+        customWeekendOverrides: [String: Bool] = [:]
     ) {
         self.annualSalary = annualSalary
         self.currencyCode = currencyCode
@@ -38,6 +46,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.workEnd = workEnd
         self.launchAtLogin = launchAtLogin
         self.testMode = testMode
+        self.selectedPeriod = selectedPeriod
+        self.hideDashboardAmounts = hideDashboardAmounts
+        self.hideSettingsAmounts = hideSettingsAmounts
+        self.customWeekendOverrides = customWeekendOverrides
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -48,6 +60,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case workEnd
         case launchAtLogin
         case testMode
+        case selectedPeriod
+        case hideDashboardAmounts
+        case hideSettingsAmounts
+        case customWeekendOverrides
     }
 
     public init(from decoder: Decoder) throws {
@@ -59,6 +75,35 @@ public struct AppSettings: Codable, Equatable, Sendable {
         workEnd = try container.decodeIfPresent(TimeOfDay.self, forKey: .workEnd) ?? .defaultEnd
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         testMode = try container.decodeIfPresent(Bool.self, forKey: .testMode) ?? false
+        selectedPeriod = try container.decodeIfPresent(PeriodKind.self, forKey: .selectedPeriod) ?? .day
+        hideDashboardAmounts = try container.decodeIfPresent(Bool.self, forKey: .hideDashboardAmounts) ?? false
+        hideSettingsAmounts = try container.decodeIfPresent(Bool.self, forKey: .hideSettingsAmounts) ?? false
+        customWeekendOverrides = try container.decodeIfPresent([String: Bool].self, forKey: .customWeekendOverrides) ?? [:]
+    }
+}
+
+public enum PeriodKind: String, CaseIterable, Codable, Equatable, Sendable {
+    case day
+    case week
+    case month
+    case year
+
+    public var title: String {
+        switch self {
+        case .day: return "日"
+        case .week: return "周"
+        case .month: return "月"
+        case .year: return "年"
+        }
+    }
+
+    public var metricTitle: String {
+        switch self {
+        case .day: return "今日已赚"
+        case .week: return "本周已赚"
+        case .month: return "本月已赚"
+        case .year: return "今年已赚"
+        }
     }
 }
 
@@ -104,6 +149,7 @@ public struct MoneySnapshot: Equatable, Sendable {
     public var progress: Double
     public var workdayCount: Int
     public var status: WorkStatus
+    public var period: MoneyPeriodSnapshot
 
     public init(
         earnedToday: Double,
@@ -111,7 +157,8 @@ public struct MoneySnapshot: Equatable, Sendable {
         perSecondIncome: Double,
         progress: Double,
         workdayCount: Int,
-        status: WorkStatus
+        status: WorkStatus,
+        period: MoneyPeriodSnapshot? = nil
     ) {
         self.earnedToday = earnedToday
         self.dailyIncome = dailyIncome
@@ -119,5 +166,34 @@ public struct MoneySnapshot: Equatable, Sendable {
         self.progress = min(max(progress, 0), 1)
         self.workdayCount = workdayCount
         self.status = status
+        self.period = period ?? MoneyPeriodSnapshot(
+            kind: .day,
+            earned: earnedToday,
+            limit: dailyIncome,
+            progress: min(max(progress, 0), 1),
+            workdayCount: status == .noSalary ? 0 : 1
+        )
+    }
+}
+
+public struct MoneyPeriodSnapshot: Equatable, Sendable {
+    public var kind: PeriodKind
+    public var earned: Double
+    public var limit: Double
+    public var progress: Double
+    public var workdayCount: Int
+
+    public init(
+        kind: PeriodKind,
+        earned: Double,
+        limit: Double,
+        progress: Double,
+        workdayCount: Int
+    ) {
+        self.kind = kind
+        self.earned = max(earned, 0)
+        self.limit = max(limit, 0)
+        self.progress = min(max(progress, 0), 1)
+        self.workdayCount = max(workdayCount, 0)
     }
 }
