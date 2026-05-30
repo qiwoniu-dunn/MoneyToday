@@ -3,27 +3,38 @@ import MoneyTodayCore
 import SwiftUI
 
 private enum UITheme {
-    static let panelWidth: CGFloat = 392
-    static let panelHeight: CGFloat = 560
+    static let panelWidth: CGFloat = 410
+    static let panelHeight: CGFloat = 586
+    static let settingsPanelHeight: CGFloat = 720
     static let pagePadding: CGFloat = 24
-    static let corner: CGFloat = 18
-    static let cardCorner: CGFloat = 14
-    static let mint = Color(red: 0.37, green: 0.86, blue: 0.62)
-    static let mintDeep = Color(red: 0.12, green: 0.58, blue: 0.34)
-    static let gold = Color(red: 0.95, green: 0.72, blue: 0.28)
-    static let ink = Color(red: 0.93, green: 0.91, blue: 0.86)
-    static let muted = Color(red: 0.68, green: 0.70, blue: 0.68)
-    static let hairline = Color.white.opacity(0.12)
-    static let fill = Color.white.opacity(0.065)
-    static let fillStrong = Color.white.opacity(0.10)
+    static let corner: CGFloat = 24
+    static let cardCorner: CGFloat = 17
+    static let mint = Color(red: 0.56, green: 0.95, blue: 0.62)
+    static let mintDeep = Color(red: 0.23, green: 0.72, blue: 0.38)
+    static let gold = Color(red: 0.96, green: 0.75, blue: 0.42)
+    static let goldDeep = Color(red: 0.58, green: 0.41, blue: 0.21)
+    static let ink = Color(red: 0.96, green: 0.91, blue: 0.80)
+    static let inkDim = Color(red: 0.77, green: 0.72, blue: 0.64)
+    static let muted = Color(red: 0.58, green: 0.59, blue: 0.56)
+    static let panelDark = Color(red: 0.06, green: 0.075, blue: 0.08)
+    static let panelWarm = Color(red: 0.19, green: 0.17, blue: 0.13)
+    static let hairline = Color.white.opacity(0.105)
+    static let fill = Color.black.opacity(0.20)
+    static let fillStrong = Color.black.opacity(0.34)
+    static let rowFill = Color.white.opacity(0.045)
 }
 
 struct MoneyTodayPopover: View {
     @ObservedObject var viewModel: MoneyTickerViewModel
-    @State private var isShowingSettings = false
+    var onPanelHeightChange: (CGFloat) -> Void = { _ in }
+    @State private var isShowingSettings = ProcessInfo.processInfo.environment["MONEYTODAY_SNAPSHOT_PAGE"] == "settings"
 
     private var needsInitialSetup: Bool {
         !viewModel.hasCompletedInitialSetup || viewModel.settings.annualSalary <= 0
+    }
+
+    private var desiredPanelHeight: CGFloat {
+        needsInitialSetup || isShowingSettings ? UITheme.settingsPanelHeight : UITheme.panelHeight
     }
 
     var body: some View {
@@ -33,13 +44,18 @@ struct MoneyTodayPopover: View {
 
             LinearGradient(
                 colors: [
-                    Color(red: 0.08, green: 0.09, blue: 0.09).opacity(0.52),
-                    Color(red: 0.03, green: 0.04, blue: 0.04).opacity(0.30)
+                    UITheme.panelDark.opacity(0.94),
+                    UITheme.panelWarm.opacity(0.76),
+                    Color(red: 0.05, green: 0.08, blue: 0.09).opacity(0.88)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
+
+            SubtlePanelTexture()
+                .opacity(0.55)
+                .ignoresSafeArea()
 
             if needsInitialSetup || isShowingSettings {
                 SettingsScreen(
@@ -53,14 +69,26 @@ struct MoneyTodayPopover: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.985)))
             }
         }
-        .frame(width: UITheme.panelWidth, height: UITheme.panelHeight)
+        .frame(width: UITheme.panelWidth, height: desiredPanelHeight)
         .clipShape(RoundedRectangle(cornerRadius: UITheme.corner, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: UITheme.corner, style: .continuous)
-                .stroke(.white.opacity(0.16), lineWidth: 1)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.22), UITheme.gold.opacity(0.16), Color.white.opacity(0.07)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
+        .shadow(color: .black.opacity(0.46), radius: 22, x: 0, y: 18)
         .animation(.easeInOut(duration: 0.18), value: needsInitialSetup)
         .animation(.easeInOut(duration: 0.18), value: isShowingSettings)
+        .onAppear { onPanelHeightChange(desiredPanelHeight) }
+        .onChange(of: desiredPanelHeight) { height in
+            onPanelHeightChange(height)
+        }
     }
 }
 
@@ -75,7 +103,7 @@ private struct DashboardScreen: View {
     private var hidden: Bool { viewModel.settings.hideDashboardAmounts }
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 16) {
             header
             periodPicker
             earningsBlock
@@ -90,18 +118,26 @@ private struct DashboardScreen: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             AppIconMark()
-                .frame(width: 34, height: 34)
+                .frame(width: 42, height: 42)
+                .shadow(color: UITheme.gold.opacity(0.18), radius: 8, x: 0, y: 4)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("窝囊费查看器")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(UITheme.ink)
-                Text("\(viewModel.snapshot.status.title) · 芝麻陪班中")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(UITheme.muted)
-                    .lineLimit(1)
+                    .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(UITheme.mint)
+                        .frame(width: 6, height: 6)
+                        .shadow(color: UITheme.mint.opacity(0.8), radius: 4, x: 0, y: 0)
+                    Text("\(viewModel.snapshot.status.title) · 芝麻陪班中")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(UITheme.inkDim)
+                        .lineLimit(1)
+                }
             }
 
             Spacer(minLength: 10)
@@ -114,35 +150,39 @@ private struct DashboardScreen: View {
     }
 
     private var periodPicker: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 0) {
             ForEach(PeriodKind.allCases, id: \.self) { period in
                 Button {
                     viewModel.setPeriod(period)
                 } label: {
                     Text(period.title)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(viewModel.selectedPeriod == period ? Color.black.opacity(0.82) : UITheme.muted)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(viewModel.selectedPeriod == period ? UITheme.ink : UITheme.inkDim.opacity(0.78))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 30)
+                        .frame(height: 34)
                         .background(
-                            Capsule(style: .continuous)
-                                .fill(viewModel.selectedPeriod == period ? UITheme.ink : Color.clear)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(viewModel.selectedPeriod == period ? UITheme.gold.opacity(0.22) : Color.clear)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(viewModel.selectedPeriod == period ? UITheme.gold.opacity(0.76) : Color.clear, lineWidth: 1)
+                                )
                         )
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(4)
-        .background(Capsule(style: .continuous).fill(.black.opacity(0.18)))
-        .overlay(Capsule(style: .continuous).stroke(UITheme.hairline, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.24)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(UITheme.hairline, lineWidth: 1))
     }
 
     private var earningsBlock: some View {
-        VStack(alignment: .leading, spacing: 15) {
+        VStack(alignment: .leading, spacing: 13) {
             HStack(alignment: .firstTextBaseline) {
                 Text(viewModel.selectedPeriod.metricTitle)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(UITheme.muted)
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .foregroundStyle(UITheme.inkDim.opacity(0.72))
                 Spacer()
                 if viewModel.settings.testMode {
                     Text("测试模式")
@@ -154,66 +194,83 @@ private struct DashboardScreen: View {
                 }
             }
 
-            Text(viewModel.displayMoney(mainAmount, fractionDigits: isDay ? 4 : 2, hidden: hidden))
-                .font(.system(size: 42, weight: .semibold, design: .monospaced))
-                .foregroundStyle(UITheme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.45)
-                .contentTransition(.numericText())
-                .animation(.linear(duration: 0.08), value: mainAmount)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            InstrumentAmountText(
+                text: viewModel.displayMoney(mainAmount, fractionDigits: isDay ? 3 : 2, hidden: hidden)
+            )
+            .contentTransition(.numericText())
+            .animation(.linear(duration: 0.08), value: mainAmount)
 
             GreenProgressBar(value: mainProgress)
-                .frame(height: 7)
+                .frame(height: 8)
         }
-        .padding(18)
-        .background(GlassCard(tint: UITheme.fillStrong))
+        .padding(.vertical, 18)
+        .padding(.horizontal, 18)
+        .background(
+            GlassCard(
+                tint: LinearGradient(
+                    colors: [.white.opacity(0.055), UITheme.gold.opacity(0.055), .black.opacity(0.12)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                stroke: .white.opacity(0.12),
+                radius: 18
+            )
+        )
     }
 
     private var metricStrip: some View {
         HStack(spacing: 8) {
             if isDay {
-                MetricPill(title: "每秒收入", value: viewModel.displayMoney(viewModel.snapshot.perSecondIncome, fractionDigits: 4, hidden: hidden))
-                MetricPill(title: "今日上限", value: viewModel.displayMoney(viewModel.snapshot.dailyIncome, hidden: hidden))
-                MetricPill(title: "全年工作日", value: "\(viewModel.snapshot.workdayCount) 天")
+                MetricPill(icon: "clock.fill", title: "每秒收入", value: viewModel.displayMoney(viewModel.snapshot.perSecondIncome, fractionDigits: 4, hidden: hidden))
+                MetricPill(icon: "crown.fill", title: "今日上限", value: viewModel.displayMoney(viewModel.snapshot.dailyIncome, hidden: hidden))
+                MetricPill(icon: "calendar", title: "全年工作日", value: "\(viewModel.snapshot.workdayCount) 天")
             } else {
-                MetricPill(title: "\(viewModel.selectedPeriod.title)工作日", value: "\(viewModel.snapshot.period.workdayCount) 天")
-                MetricPill(title: "周期上限", value: viewModel.displayMoney(mainLimit, hidden: hidden))
-                MetricPill(title: "今日上限", value: viewModel.displayMoney(viewModel.snapshot.dailyIncome, hidden: hidden))
+                MetricPill(icon: "calendar", title: "\(viewModel.selectedPeriod.title)工作日", value: "\(viewModel.snapshot.period.workdayCount) 天")
+                MetricPill(icon: "crown.fill", title: "周期上限", value: viewModel.displayMoney(mainLimit, hidden: hidden))
+                MetricPill(icon: "sun.max.fill", title: "今日上限", value: viewModel.displayMoney(viewModel.snapshot.dailyIncome, hidden: hidden))
             }
         }
     }
 
     private var rewardScene: some View {
         let reward = viewModel.rewardMessage
-        return HStack(spacing: 14) {
-            ZStack(alignment: .bottomTrailing) {
-                RewardAssetIcon(assetName: reward.assetName, fallbackKind: reward.iconKind)
-                    .frame(width: 72, height: 72)
-                    .offset(x: -8, y: -2)
-                PetSpriteView(state: .waving, active: viewModel.isPanelVisible)
-                    .frame(width: 50, height: 54)
-                    .offset(x: 18, y: 10)
-            }
-            .frame(width: 104, height: 82)
-
+        return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 7) {
                 Text(reward.title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundStyle(UITheme.ink)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.82)
+                    .minimumScaleFactor(0.78)
                 Text(reward.detail)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(UITheme.muted)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(UITheme.inkDim.opacity(0.82))
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            RewardCompanionScene(
+                itemName: reward.itemName,
+                assetName: reward.assetName,
+                fallbackKind: reward.iconKind,
+                active: viewModel.isPanelVisible
+            )
+            .frame(maxWidth: .infinity, minHeight: 136)
         }
-        .padding(.vertical, 14)
+        .padding(.vertical, 15)
         .padding(.horizontal, 16)
-        .background(GlassCard(tint: UITheme.mint.opacity(0.10), stroke: UITheme.mint.opacity(0.22)))
+        .frame(minHeight: 156)
+        .background(
+            GlassCard(
+                tint: LinearGradient(
+                    colors: [Color(red: 0.13, green: 0.15, blue: 0.14).opacity(0.78), UITheme.gold.opacity(0.055)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                ),
+                stroke: UITheme.gold.opacity(0.34),
+                radius: 18
+            )
+        )
     }
 
     private var periodSummary: some View {
@@ -231,7 +288,7 @@ private struct DashboardScreen: View {
             Spacer()
         }
         .padding(16)
-        .background(GlassCard())
+        .background(GlassCard(tint: .black.opacity(0.18), stroke: .white.opacity(0.09)))
     }
 }
 
@@ -256,15 +313,15 @@ private struct SettingsScreen: View {
     private var header: some View {
         HStack(spacing: 12) {
             AppIconMark()
-                .frame(width: 38, height: 38)
+                .frame(width: 42, height: 42)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(headerTitle)
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(UITheme.ink)
                 Text(headerSubtitle)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(UITheme.muted)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(UITheme.inkDim.opacity(0.72))
                     .lineLimit(2)
             }
 
@@ -313,18 +370,15 @@ private struct SettingsScreen: View {
     }
 
     private var mainSettings: some View {
-        VStack(spacing: 14) {
-            ScrollView {
-                VStack(spacing: 12) {
-                    settingsForm
-                    navigationRows
-                    switches
-                    holidaySync
-                }
-                .padding(16)
+        VStack(spacing: 16) {
+            VStack(spacing: 16) {
+                settingsForm
+                navigationRows
+                switches
+                holidaySync
             }
-            .frame(maxHeight: 380)
-            .background(GlassCard())
+            .padding(14)
+            .background(GlassCard(tint: .black.opacity(0.15), stroke: .white.opacity(0.10), radius: 18))
 
             primaryButton
             footer
@@ -332,12 +386,14 @@ private struct SettingsScreen: View {
     }
 
     private var settingsForm: some View {
-        VStack(spacing: 12) {
-            SettingRow(label: "年薪") {
+        VStack(spacing: 0) {
+            SettingRow(icon: "yensign.circle", label: "年薪") {
                 salaryField
             }
 
-            SettingRow(label: "货币") {
+            DividerLine()
+
+            SettingRow(icon: "globe.asia.australia", label: "货币") {
                 Picker("", selection: Binding(
                     get: { viewModel.settings.currencyCode },
                     set: { code in
@@ -350,10 +406,13 @@ private struct SettingsScreen: View {
                     }
                 }
                 .labelsHidden()
+                .pickerStyle(.menu)
                 .frame(width: 126)
             }
 
-            SettingRow(label: "工作时间") {
+            DividerLine()
+
+            SettingRow(icon: "clock", label: "工作时间") {
                 HStack(spacing: 7) {
                     TimeField(text: $viewModel.startText, onSubmit: save)
                     Text("至")
@@ -363,39 +422,50 @@ private struct SettingsScreen: View {
                 }
             }
         }
+        .background(SettingsGroupBackground())
     }
 
     @ViewBuilder
     private var salaryField: some View {
         if viewModel.settings.hideSettingsAmounts {
             SecureField("例如 300000", text: $viewModel.salaryText)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
                 .font(.system(size: 13, design: .monospaced))
-                .frame(maxWidth: 160)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: 166)
+                .background(FieldBackground())
                 .onSubmit { save() }
         } else {
             TextField("例如 300000", text: $viewModel.salaryText)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
                 .font(.system(size: 13, design: .monospaced))
-                .frame(maxWidth: 160)
+                .foregroundStyle(Color.black.opacity(0.86))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: 166)
+                .background(FieldBackground())
                 .onSubmit { save() }
         }
     }
 
     private var navigationRows: some View {
-        VStack(spacing: 8) {
-            NavigationRow(title: "休息日设置", detail: "\(viewModel.settings.customWeekendOverrides.count) 个自定义") { page = .weekends }
-            NavigationRow(title: "兑换物对照表", detail: "\(viewModel.rewardEntries.count) 个锚点") { page = .rewards }
+        VStack(spacing: 0) {
+            NavigationRow(icon: "calendar.badge.checkmark", title: "休息日设置", detail: "\(viewModel.settings.customWeekendOverrides.count) 个自定义") { page = .weekends }
+            DividerLine()
+            NavigationRow(icon: "gift", title: "兑换物对照表", detail: "\(viewModel.rewardEntries.count) 个锚点") { page = .rewards }
         }
+        .background(SettingsGroupBackground())
     }
 
     private var switches: some View {
-        VStack(spacing: 10) {
-            ToggleRow(title: "开机启动", detail: nil, isOn: Binding(
+        VStack(spacing: 0) {
+            ToggleRow(icon: "power", title: "开机启动", detail: nil, isOn: Binding(
                 get: { viewModel.settings.launchAtLogin },
                 set: { viewModel.setLaunchAtLogin($0) }
             ))
-            ToggleRow(title: "测试模式", detail: "忽略周末和节假日，方便验收实时跳动。", isOn: Binding(
+            DividerLine()
+            ToggleRow(icon: "flask", title: "测试模式", detail: "忽略周末和节假日，方便验收实时跳动。", isOn: Binding(
                 get: { viewModel.settings.testMode },
                 set: { enabled in
                     viewModel.settings.testMode = enabled
@@ -403,26 +473,32 @@ private struct SettingsScreen: View {
                 }
             ))
         }
+        .background(SettingsGroupBackground())
     }
 
     private var holidaySync: some View {
-        HStack(spacing: 10) {
-            Text(viewModel.syncMessage)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(UITheme.muted)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Spacer()
-            Button {
-                Task { await viewModel.syncHolidays() }
-            } label: {
-                Text("同步节假日")
+        Button {
+            Task { await viewModel.syncHolidays() }
+        } label: {
+            HStack(spacing: 12) {
+                RowIcon(systemName: "icloud.and.arrow.down")
+                Text("节假日数据同步")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(UITheme.ink)
+                Spacer()
+                Text(viewModel.syncMessage)
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(UITheme.mint)
+                    .foregroundStyle(UITheme.inkDim.opacity(0.65))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(UITheme.inkDim.opacity(0.62))
             }
-            .buttonStyle(.plain)
+            .padding(13)
+            .background(SettingsGroupBackground())
         }
-        .padding(.top, 4)
+        .buttonStyle(.plain)
     }
 
     private var primaryButton: some View {
@@ -432,17 +508,21 @@ private struct SettingsScreen: View {
                 Text(mode == .initial ? "保存并开始" : "保存设置")
             }
             .font(.system(size: 13, weight: .semibold, design: .rounded))
-            .foregroundStyle(Color.black.opacity(0.82))
+            .foregroundStyle(Color(red: 0.12, green: 0.10, blue: 0.06))
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, 13)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [UITheme.mint, Color(red: 0.68, green: 0.94, blue: 0.72)],
+                            colors: [Color(red: 0.96, green: 0.82, blue: 0.56), Color(red: 0.73, green: 0.50, blue: 0.25)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .stroke(Color.white.opacity(0.28), lineWidth: 1)
                     )
             )
         }
@@ -548,7 +628,7 @@ private struct RewardCatalogScreen: View {
                             Text(entry.name)
                                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                                 .foregroundStyle(UITheme.ink)
-                            Text("\(entry.category) · 约 ¥\(Int(entry.priceCNY)) / \(entry.unit)")
+                            Text("\(entry.category) · 生活想象锚点")
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
                                 .foregroundStyle(UITheme.muted)
                         }
@@ -568,24 +648,258 @@ private struct RewardCatalogScreen: View {
 }
 
 private struct MetricPill: View {
+    var icon: String
     var title: String
     var value: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title)
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(UITheme.muted)
-                .lineLimit(1)
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(UITheme.gold)
+                Text(title)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(UITheme.inkDim.opacity(0.8))
+                    .lineLimit(1)
+            }
             Text(value)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: 15, weight: .bold, design: .monospaced))
                 .foregroundStyle(UITheme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.54)
+                .monospacedDigit()
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
-        .padding(.horizontal, 10)
-        .background(GlassCard(tint: .white.opacity(0.045), radius: 12))
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .padding(.horizontal, 12)
+        .background(GlassCard(tint: .black.opacity(0.16), stroke: .white.opacity(0.08), radius: 13))
+    }
+}
+
+private struct InstrumentAmountText: View {
+    var text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 43, weight: .medium, design: .monospaced))
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [UITheme.ink, Color(red: 1.0, green: 0.86, blue: 0.62)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .shadow(color: UITheme.gold.opacity(0.18), radius: 7, x: 0, y: 0)
+            .shadow(color: .black.opacity(0.45), radius: 2, x: 0, y: 2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.42)
+            .monospacedDigit()
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+}
+
+private struct RewardCompanionScene: View {
+    var itemName: String
+    var assetName: String
+    var fallbackKind: RewardIconKind
+    var active: Bool
+    @State private var poseID = RewardAnimationPose.snapshotID
+
+    private var frozen: Bool {
+        ProcessInfo.processInfo.environment["MONEYTODAY_FREEZE_ANIMATION"] == "1"
+    }
+
+    private var displayedPoseID: String {
+        frozen ? RewardAnimationPose.snapshotID : poseID
+    }
+
+    var body: some View {
+        VStack(spacing: 5) {
+            ZStack {
+                Ellipse()
+                    .fill(.black.opacity(0.32))
+                    .frame(width: 140, height: 19)
+                    .blur(radius: 5)
+                    .offset(x: 12, y: 47)
+
+                RewardAssetIcon(assetName: assetName, fallbackKind: fallbackKind)
+                    .frame(width: 108, height: 108)
+                    .offset(x: 26, y: -8)
+                    .shadow(color: .black.opacity(0.38), radius: 6, x: 0, y: 7)
+                    .zIndex(2)
+
+                RewardLoopSpriteView(poseID: displayedPoseID, active: active && !frozen)
+                    .frame(width: 144, height: 164)
+                    .offset(x: -50, y: 9)
+                    .zIndex(3)
+            }
+            .frame(width: 158, height: 104)
+
+            RewardItemNamePlate(name: itemName)
+        }
+        .accessibilityHidden(true)
+        .onAppear {
+            selectPoseIfNeeded()
+        }
+        .onChange(of: active) { isActive in
+            if isActive && !frozen {
+                poseID = RewardAnimationPose.randomID(for: assetName)
+            }
+        }
+        .onChange(of: assetName) { _ in
+            selectPoseIfNeeded()
+        }
+    }
+
+    private func selectPoseIfNeeded() {
+        guard active && !frozen else { return }
+        poseID = RewardAnimationPose.randomID(for: assetName)
+    }
+}
+
+private struct RewardItemNamePlate: View {
+    var name: String
+
+    var body: some View {
+        Text(name)
+            .font(.system(size: 10, weight: .heavy, design: .rounded))
+            .foregroundStyle(UITheme.ink)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.62)
+            .frame(width: 134)
+            .frame(minHeight: 24)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.black.opacity(0.32))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(UITheme.gold.opacity(0.30), lineWidth: 1)
+                    )
+            )
+    }
+}
+
+private struct RewardLoopSpriteView: View {
+    var poseID: String
+    var active: Bool
+    @State private var frame = 0
+
+    var body: some View {
+        Group {
+            if let image = RewardLoopSpriteStore.frame(poseID: poseID, index: frame) {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.none)
+                    .scaledToFit()
+            } else {
+                PetSpriteView(state: .idle, active: active)
+            }
+        }
+        .task(id: "\(poseID)|\(active)") {
+            frame = 0
+            guard active else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: RewardAnimationPose.frameDuration)
+                await MainActor.run {
+                    frame = (frame + 1) % RewardAnimationPose.frameCount
+                }
+            }
+        }
+    }
+}
+
+private enum RewardAnimationPose {
+    static let frameCount = 16
+    static let frameDuration: UInt64 = 150_000_000
+    static let snapshotID = "06_geyou_guard"
+    static let ids = [
+        "01_run_to_reward",
+        "02_careful_touch",
+        "03_orbit_inspect",
+        "04_push_closer",
+        "05_claim_guard",
+        "06_geyou_guard",
+        "07_happy_roll",
+        "08_sleep_nearby",
+        "09_star_daydream",
+        "10_paw_wave"
+    ]
+
+    static func randomID(for assetName: String) -> String {
+        let pool = posePool(for: assetName)
+        return pool.randomElement() ?? snapshotID
+    }
+
+    private static func posePool(for assetName: String) -> [String] {
+        switch assetName {
+        case "reward-coffee", "reward-tea", "reward-burger-meal", "reward-noodle-bento", "reward-salad", "reward-brunch":
+            return ["02_careful_touch", "07_happy_roll"]
+        case "reward-restaurant-meal", "reward-steak", "reward-buffet-hotpot":
+            return ["02_careful_touch", "05_claim_guard", "07_happy_roll"]
+        case "reward-hotel", "reward-massage":
+            return ["06_geyou_guard", "08_sleep_nearby"]
+        case "reward-haircare":
+            return ["06_geyou_guard", "02_careful_touch"]
+        case "reward-fitness-class":
+            return ["01_run_to_reward", "07_happy_roll"]
+        case "reward-sportswear", "reward-sneakers":
+            return ["01_run_to_reward", "10_paw_wave"]
+        case "reward-sports-accessory", "reward-city-ride", "reward-bag":
+            return ["01_run_to_reward", "04_push_closer"]
+        case "reward-health-scale":
+            return ["03_orbit_inspect", "02_careful_touch"]
+        case "reward-earbuds", "reward-headphones", "reward-airpods":
+            return ["03_orbit_inspect", "05_claim_guard", "09_star_daydream"]
+        case "reward-speaker":
+            return ["03_orbit_inspect", "07_happy_roll"]
+        case "reward-keycaps", "reward-mouse", "reward-desk-setup":
+            return ["03_orbit_inspect", "04_push_closer"]
+        case "reward-keyboard":
+            return ["03_orbit_inspect", "04_push_closer", "05_claim_guard"]
+        case "reward-monitor", "reward-storage-drive", "reward-tablet":
+            return ["03_orbit_inspect", "05_claim_guard"]
+        case "reward-office-chair":
+            return ["06_geyou_guard", "05_claim_guard"]
+        case "reward-air-fryer", "reward-home-appliance", "reward-coffee-machine", "reward-air-purifier", "reward-hair-dryer", "reward-fragrance":
+            return ["02_careful_touch", "09_star_daydream"]
+        case "reward-toothbrush":
+            return ["02_careful_touch", "10_paw_wave"]
+        case "reward-skincare":
+            return ["02_careful_touch", "09_star_daydream", "10_paw_wave"]
+        case "reward-train", "reward-flight", "reward-camera":
+            return ["01_run_to_reward", "09_star_daydream"]
+        case "reward-travel":
+            return ["01_run_to_reward", "09_star_daydream", "06_geyou_guard"]
+        case "reward-game-console":
+            return ["05_claim_guard", "07_happy_roll", "10_paw_wave"]
+        case "reward-projector", "reward-movie", "reward-live-show":
+            return ["07_happy_roll", "09_star_daydream", "10_paw_wave"]
+        default:
+            return ids
+        }
+    }
+}
+
+@MainActor
+private enum RewardLoopSpriteStore {
+    private static var cache: [String: NSImage] = [:]
+
+    static func frame(poseID: String, index: Int) -> NSImage? {
+        let normalized = ((index % RewardAnimationPose.frameCount) + RewardAnimationPose.frameCount) % RewardAnimationPose.frameCount
+        let cacheKey = "\(poseID)-\(normalized)"
+        if let cached = cache[cacheKey] {
+            return cached
+        }
+        let name = String(format: "frame-%02d", normalized)
+        guard let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Pets/zhima/reward-animations/\(poseID)"),
+              let image = NSImage(contentsOf: url)
+        else { return nil }
+        cache[cacheKey] = image
+        return image
     }
 }
 
@@ -599,15 +913,8 @@ private struct RewardAssetIcon: View {
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
-                .padding(5)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(UITheme.gold.opacity(0.13))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(UITheme.gold.opacity(0.18), lineWidth: 1)
-                        )
-                )
+                .padding(2)
+                .shadow(color: .black.opacity(0.30), radius: 3, x: 0, y: 3)
         } else {
             PixelRewardIcon(kind: fallbackKind)
         }
@@ -760,11 +1067,11 @@ private struct IconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(UITheme.ink.opacity(0.86))
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(.white.opacity(0.07)))
-                .overlay(Circle().stroke(UITheme.hairline, lineWidth: 1))
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(.white.opacity(0.075)))
+                .overlay(Circle().stroke(.white.opacity(0.14), lineWidth: 1))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -773,41 +1080,44 @@ private struct IconButton: View {
 }
 
 private struct NavigationRow: View {
+    var icon: String
     var title: String
     var detail: String
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack {
+            HStack(spacing: 12) {
+                RowIcon(systemName: icon)
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(UITheme.ink)
                 Spacer()
                 Text(detail)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(UITheme.muted)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(UITheme.inkDim.opacity(0.65))
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(UITheme.muted.opacity(0.65))
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(UITheme.inkDim.opacity(0.62))
             }
-            .padding(11)
-            .background(RowBackground())
+            .padding(13)
         }
         .buttonStyle(.plain)
     }
 }
 
 private struct ToggleRow: View {
+    var icon: String
     var title: String
     var detail: String?
     @Binding var isOn: Bool
 
     var body: some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .center, spacing: 12) {
+            RowIcon(systemName: icon)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(UITheme.ink)
                 if let detail {
                     Text(detail)
@@ -821,26 +1131,26 @@ private struct ToggleRow: View {
                 .labelsHidden()
                 .toggleStyle(MoneyToggleStyle())
         }
-        .padding(11)
-        .background(RowBackground())
+        .padding(13)
     }
 }
 
 private struct SettingRow<Content: View>: View {
+    var icon: String
     var label: String
     @ViewBuilder var content: Content
 
     var body: some View {
         HStack(spacing: 12) {
+            RowIcon(systemName: icon)
             Text(label)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(UITheme.muted)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(UITheme.ink)
                 .frame(width: 62, alignment: .leading)
             Spacer(minLength: 6)
             content
         }
-        .padding(11)
-        .background(RowBackground())
+        .padding(13)
     }
 }
 
@@ -850,17 +1160,27 @@ private struct TimeField: View {
 
     var body: some View {
         TextField("09:00", text: $text)
-            .textFieldStyle(.roundedBorder)
+            .textFieldStyle(.plain)
             .font(.system(size: 12, design: .monospaced))
+            .foregroundStyle(Color.black.opacity(0.86))
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
             .frame(width: 62)
+            .background(FieldBackground())
             .onSubmit(onSubmit)
     }
 }
 
 private struct GlassCard: View {
-    var tint: Color = UITheme.fill
+    var tint: AnyShapeStyle = AnyShapeStyle(UITheme.fill)
     var stroke: Color = UITheme.hairline
     var radius: CGFloat = UITheme.cardCorner
+
+    init(tint: some ShapeStyle = UITheme.fill, stroke: Color = UITheme.hairline, radius: CGFloat = UITheme.cardCorner) {
+        self.tint = AnyShapeStyle(tint)
+        self.stroke = stroke
+        self.radius = radius
+    }
 
     var body: some View {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -875,10 +1195,52 @@ private struct GlassCard: View {
 private struct RowBackground: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 11, style: .continuous)
-            .fill(.white.opacity(0.045))
+            .fill(UITheme.rowFill)
             .overlay(
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .stroke(.white.opacity(0.08), lineWidth: 1)
+            )
+    }
+}
+
+private struct SettingsGroupBackground: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 15, style: .continuous)
+            .fill(.black.opacity(0.18))
+            .overlay(
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .stroke(.white.opacity(0.10), lineWidth: 1)
+            )
+    }
+}
+
+private struct DividerLine: View {
+    var body: some View {
+        Rectangle()
+            .fill(.white.opacity(0.07))
+            .frame(height: 1)
+            .padding(.leading, 52)
+    }
+}
+
+private struct RowIcon: View {
+    var systemName: String
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(UITheme.ink.opacity(0.88))
+            .frame(width: 28, height: 28)
+    }
+}
+
+private struct FieldBackground: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(Color.white.opacity(0.92))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(.white.opacity(0.35), lineWidth: 1)
             )
     }
 }
@@ -922,6 +1284,26 @@ private struct MoneyToggleStyle: ToggleStyle {
                 }
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct SubtlePanelTexture: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [.white.opacity(0.08), .clear, .black.opacity(0.18)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            VStack(spacing: 9) {
+                ForEach(0..<70, id: \.self) { _ in
+                    Rectangle()
+                        .fill(.white.opacity(0.018))
+                        .frame(height: 1)
+                }
+            }
+            .blendMode(.softLight)
+        }
     }
 }
 

@@ -1,13 +1,13 @@
-# Reward Catalog V2 Draft
+# Reward Catalog V2
 
-This is the working draft for the next reward catalog. It keeps concrete brand/product copy separate from reusable image assets.
+This is the 1.1/1.2 reward catalog. It keeps concrete brand/product copy separate from reusable image assets.
 
 ## Design Rules
 
 - Daily-income tiers: 300, 500, 1000, 2000, 3000 CNY.
 - Each tier has 10 steps, evenly split by daily income.
-- Each step currently has 6 concrete reward options, so the current draft contains 300 concrete options.
-- Expansion target is 600 concrete options. Unless new products create a new small-icon silhouette family, they should reuse the existing asset keys in `reward-asset-taxonomy.md`.
+- Each step has 6 concrete reward options, so the current catalog contains 300 concrete options.
+- 1.2 does not expand the product pool or the 47 product image categories.
 - Avoid weak copy such as entry-level, low-price, budget, accessory-only, discount, fund, or subsidy.
 - Display concrete brands/products in copy, but draw generic logo-free pixel icons.
 

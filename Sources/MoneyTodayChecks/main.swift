@@ -167,6 +167,14 @@ struct MoneyTodayChecks {
         assert(!low.assetName.isEmpty)
         assert(!mid.assetName.isEmpty)
         assert(!high.assetName.isEmpty)
+        let forbiddenCopy = ["约等于", "够换", "已获得", "档位", "点亮", "奖励台", "换成", "第 "]
+        for reward in [low, mid, high] {
+            for term in forbiddenCopy {
+                assert(!reward.title.contains(term), "Forbidden reward title term: \(term)")
+                assert(!reward.detail.contains(term), "Forbidden reward detail term: \(term)")
+            }
+            assert(!reward.detail.contains("杯奶茶"), "Reward copy should not stack low-price items")
+        }
 
         let sameDayAgain = RewardCatalog.reward(earned: 500, dailyIncome: 1000, currencyCode: "CNY", date: date, calendar: calendar)
         assert(mid == sameDayAgain)
@@ -194,7 +202,13 @@ struct MoneyTodayChecks {
         for entry in RewardCatalog.catalogEntries where entry.enabled {
             let url = rewardsDir.appendingPathComponent("\(entry.assetName).png")
             assert(FileManager.default.fileExists(atPath: url.path), "Missing reward asset \(entry.assetName)")
-            assert(NSImage(contentsOf: url) != nil, "Invalid reward asset \(entry.assetName)")
+            guard let image = NSImage(contentsOf: url),
+                  let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            else {
+                assertionFailure("Invalid reward asset \(entry.assetName)")
+                continue
+            }
+            assert(cgImage.alphaInfo != .none && cgImage.alphaInfo != .noneSkipLast && cgImage.alphaInfo != .noneSkipFirst, "Reward asset lacks alpha \(entry.assetName)")
         }
 
         let spriteURL = root.appendingPathComponent("Sources/MoneyTodayApp/Resources/Pets/zhima/spritesheet.webp")
@@ -204,6 +218,29 @@ struct MoneyTodayChecks {
         }
         assert(Int(image.size.width) == 1536)
         assert(Int(image.size.height) == 1872)
+
+        let animationDir = root.appendingPathComponent("Sources/MoneyTodayApp/Resources/Pets/zhima/reward-animations")
+        let poseIDs = [
+            "01_run_to_reward",
+            "02_careful_touch",
+            "03_orbit_inspect",
+            "04_push_closer",
+            "05_claim_guard",
+            "06_geyou_guard",
+            "07_happy_roll",
+            "08_sleep_nearby",
+            "09_star_daydream",
+            "10_paw_wave"
+        ]
+        for poseID in poseIDs {
+            for index in 0..<16 {
+                let name = String(format: "frame-%02d", index)
+                let url = animationDir.appendingPathComponent(poseID).appendingPathComponent("\(name).png")
+                assert(FileManager.default.fileExists(atPath: url.path), "Missing zhima reward animation frame \(poseID)/\(name)")
+                assert(NSImage(contentsOf: url) != nil, "Invalid zhima reward animation frame \(poseID)/\(name)")
+            }
+        }
+        assert(FileManager.default.fileExists(atPath: animationDir.appendingPathComponent("manifest.tsv").path), "Missing zhima reward animation manifest")
     }
 
     private static func shanghaiCalendar() -> Calendar {

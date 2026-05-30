@@ -9,6 +9,7 @@
 - [1.0 发布记录](./release-1.0.0.md)：版本内容、产物、验证和已知限制。
 - [1.1 发布记录](./release-1.1.0.md)：情绪价值增强版的功能、产物、验证和限制。
 - [1.2 需求记录](./requirements-1.2.0.md)：奖励文案从价格换算转向模糊价值感和心理安慰的需求约束。
+- [1.2 发布记录](./release-1.2.0.md)：UI 还原、文案口径和芝麻奖励互动的实现记录。
 - [奖励候选池 V2](./reward-catalog-v2.md)：五档日薪、十个阶梯、具体品牌奖励和 `assetKey` 映射。
 - [奖励图像资产映射](./reward-asset-taxonomy.md)：把具体品牌奖励收敛为可复用的像素图资产。
 - [产品思考沉淀](./product-thinking.md)：MoneyToday 的设计原则、情绪价值逻辑和后续方向。
@@ -16,8 +17,8 @@
 ## 当前状态
 
 - 项目名称：MoneyToday
-- 当前版本：1.1.0
-- 当前阶段：1.1 已完成本地打包，准备同步 GitHub；1.2 需求已记录，暂未开发
+- 当前版本：1.2.0
+- 当前阶段：1.2 已完成本地验收，准备同步 GitHub 并发布 Release
 - GitHub 仓库：https://github.com/qiwoniu-dunn/MoneyToday
 - 本地项目路径：`/Users/zhengchaoduan/Desktop/AI/VibeCoding/Moneytoday`
 - 主要平台：macOS

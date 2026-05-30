@@ -1,6 +1,6 @@
 # RewardsV2 Pixel Assets
 
-This folder is reserved for the next reward icon batch.
+This folder contains the reusable MoneyToday reward icon batch.
 
 ## Output Contract
 
@@ -11,9 +11,9 @@ This folder is reserved for the next reward icon batch.
 
 ## Required Asset Count
 
-The current reward-copy draft has 300 concrete product options and maps to 47 reusable pixel assets.
+The current reward-copy catalog has 300 concrete product options and maps to 47 reusable pixel assets.
 
-If the reward-copy pool expands to 600 options while staying in the same product families, this folder still needs 47 images. Add a new image only when the new product has a clearly different small-icon silhouette.
+MoneyToday 1.2 does not expand the product pool or product image categories. Add a new image only when a future product has a clearly different small-icon silhouette.
 
 ## Source Docs
 

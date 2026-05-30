@@ -69,8 +69,8 @@ public enum RewardCatalog {
         let dailyCNY = max(dailyIncome, 1) * cnyRate(for: currencyCode)
         if earnedCNY < 8 {
             return RewardMessage(
-                title: "芝麻已经就位，今天开始计分。",
-                detail: "先把仪表点亮，第一份小奖励马上会出现。",
+                title: "芝麻已经坐好，等你开工。",
+                detail: "今天已赚 ¥0，先让数字慢慢热起来。",
                 itemName: "启动奖励",
                 count: 0,
                 iconKind: .spark,
@@ -85,7 +85,7 @@ public enum RewardCatalog {
         let seed = "\(dayKey(for: date, calendar: calendar))|\(currencyCode.uppercased())|\(tier)|\(step)"
         let item = pool[stableIndex(key: "\(seed)|item", count: pool.count)]
         let title = title(for: item, earnedCNY: earnedCNY, seed: "\(seed)|title")
-        let detail = detail(for: item, earnedCNY: earnedCNY, tier: tier, step: step, seed: "\(seed)|detail")
+        let detail = detail(for: item, earnedCNY: earnedCNY, seed: "\(seed)|detail")
 
         return RewardMessage(
             title: title,
@@ -155,29 +155,130 @@ public enum RewardCatalog {
     }
 
     private static func title(for item: RewardItem, earnedCNY: Double, seed: String) -> String {
-        let templates = [
-            "芝麻递来一份\(item.name)。",
-            "这一格，换成\(item.name)刚刚好。",
-            "今天的补偿感：\(item.name)已点亮。",
-            "到账的不只是数字，还有\(item.name)。",
-            "辛苦值够了，\(item.name)出现。",
-            "芝麻认证：\(item.name)可以安排。"
-        ]
+        let templates = titleTemplates(for: item)
         return templates[stableIndex(key: seed, count: templates.count)]
     }
 
-    private static func detail(for item: RewardItem, earnedCNY: Double, tier: Int, step: Int, seed: String) -> String {
-        let amount = Int(item.priceCNY)
+    private static func detail(for item: RewardItem, earnedCNY: Double, seed: String) -> String {
         let earned = Int(earnedCNY.rounded())
-        let templates = [
-            "今日已赚约 ¥\(earned)，这一段约等于 ¥\(amount) 的\(item.name)。先把这份小确幸收下。",
-            "第 \(step)/10 个小里程碑到了，\(item.name)给今天加一点真实的回甘。",
-            "按 ¥\(tier) 日薪档看，这一刻已经够换一份\(item.name)。芝麻说：不算白忙。",
-            "工资进度条又亮一格，\(item.name)这种具体奖励，比数字更会安慰人。",
-            "你已经把这一段时间换成了\(item.name)。今天的努力有了可摸到的形状。",
-            "这一格不讲大道理，只把\(item.name)摆到你面前：继续，但别忘了犒劳自己。"
-        ]
+        let templates = detailTemplates(for: item, earned: earned)
         return templates[stableIndex(key: seed, count: templates.count)]
+    }
+
+    private static func titleTemplates(for item: RewardItem) -> [String] {
+        let name = item.name
+        switch item.iconKind {
+        case .coffee, .tea:
+            return ["芝麻把香气递过来了", "冰冰热热的盼头来了", "\(name)在心里排队"]
+        case .meal:
+            return ["今天值得好好吃一口", "胃先替你松了一口气", "\(name)让今天具体一点"]
+        case .ride:
+            return ["通勤路上可以轻一点", "芝麻替你省下一点折腾", "\(name)把路变短一点"]
+        case .movie:
+            return ["脑子今晚可以放个假", "快乐有了一个小入口", "\(name)像一张暂停键"]
+        case .wellness:
+            return ["肩膀可以先松一口气", "芝麻已经摆好放松姿势", "\(name)听起来很会安慰人"]
+        case .keyboard, .mouse, .laptop:
+            return ["桌面突然顺眼一点", "掌控感回到手边", "\(name)让工作少一点别扭"]
+        case .beauty:
+            return ["房间和自己都可以精致一点", "芝麻替你留了一点香气", "\(name)把今天变柔和一点"]
+        case .headphones:
+            return ["把世界调小声一点", "安静也可以是一种奖励", "\(name)让外面远一点"]
+        case .camera:
+            return ["把生活拍得像样一点", "不赶时间的画面出现了", "\(name)给生活一点镜头感"]
+        case .hotel:
+            return ["脑子先去住一晚", "芝麻替你留了一点喘气空间", "\(name)听起来就很会休息"]
+        case .travel:
+            return ["心已经先出门了", "芝麻把周末想远了一点", "\(name)让今天有了出口"]
+        case .phone:
+            return ["新鲜感在屏幕里亮了一下", "\(name)让期待有了形状", "芝麻看见了一点新装备的光"]
+        case .spark:
+            return ["芝麻把小确幸摆好了", "今天多了一点可期待的东西", "\(name)让数字有了温度"]
+        }
+    }
+
+    private static func detailTemplates(for item: RewardItem, earned: Int) -> [String] {
+        let name = item.name
+        switch item.iconKind {
+        case .coffee, .tea:
+            return [
+                "今天已赚 ¥\(earned)，先让脑子有一点顺口的盼头。",
+                "今天已赚 ¥\(earned)，芝麻觉得\(name)很适合下班路上慢慢喝。",
+                "今天已赚 ¥\(earned)，苦味留给工作，一点甜留给自己。"
+            ]
+        case .meal:
+            return [
+                "今天已赚 ¥\(earned)，芝麻觉得今天值得一份不糊弄的吃食。",
+                "今天已赚 ¥\(earned)，先把\(name)放进脑内菜单，日子就没那么硬。",
+                "今天已赚 ¥\(earned)，认真吃一顿这件事，也可以很有用。"
+            ]
+        case .ride:
+            return [
+                "今天已赚 ¥\(earned)，芝麻把\(name)放进今天的省力清单里。",
+                "今天已赚 ¥\(earned)，路还是那条路，但可以少一点狼狈。",
+                "今天已赚 ¥\(earned)，给自己一点不用硬扛的移动空间。"
+            ]
+        case .movie:
+            return [
+                "今天已赚 ¥\(earned)，芝麻把\(name)塞进了你的休息想象里。",
+                "今天已赚 ¥\(earned)，今晚的大脑适合交给一段别人的故事。",
+                "今天已赚 ¥\(earned)，工作还在，快乐可以先占个座。"
+            ]
+        case .wellness:
+            return [
+                "今天已赚 ¥\(earned)，芝麻已经替你想好下班后的放松姿势。",
+                "今天已赚 ¥\(earned)，\(name)像是给肩膀写的一张请假条。",
+                "今天已赚 ¥\(earned)，身体也该被温柔地记上一笔。"
+            ]
+        case .keyboard, .mouse, .laptop:
+            return [
+                "今天已赚 ¥\(earned)，芝麻觉得\(name)很适合把桌面调顺一点。",
+                "今天已赚 ¥\(earned)，手边的东西舒服了，工作也少一点钝感。",
+                "今天已赚 ¥\(earned)，这份小装备让明天看起来没那么难。"
+            ]
+        case .beauty:
+            return [
+                "今天已赚 ¥\(earned)，芝麻替你点了一点\(name)的念头。",
+                "今天已赚 ¥\(earned)，精致不一定隆重，也可以是今天的一点补偿。",
+                "今天已赚 ¥\(earned)，让房间或自己软下来一点，已经很好。"
+            ]
+        case .headphones:
+            return [
+                "今天已赚 ¥\(earned)，芝麻把\(name)放进今天的愿望清单里。",
+                "今天已赚 ¥\(earned)，外面的吵闹可以先被关小声。",
+                "今天已赚 ¥\(earned)，安静一点，快乐就更容易被听见。"
+            ]
+        case .camera:
+            return [
+                "今天已赚 ¥\(earned)，芝麻想象你拿着\(name)，去记录一个不赶时间的下午。",
+                "今天已赚 ¥\(earned)，生活偶尔也值得被拍得认真一点。",
+                "今天已赚 ¥\(earned)，有些期待已经开始有画面了。"
+            ]
+        case .hotel:
+            return [
+                "今天已赚 ¥\(earned)，工作还在继续，但芝麻已经替你留了一点喘气的空间。",
+                "今天已赚 ¥\(earned)，\(name)先在脑子里铺好一张干净的床。",
+                "今天已赚 ¥\(earned)，不是马上出发，也可以先想象一次好好休息。"
+            ]
+        case .travel:
+            return [
+                "今天已赚 ¥\(earned)，芝麻把\(name)放到周末的想象里晃了晃。",
+                "今天已赚 ¥\(earned)，有个地方可以想，就不算只是在原地转。",
+                "今天已赚 ¥\(earned)，今天撑住的部分，未来会变成一点出门的底气。"
+            ]
+        case .phone:
+            return [
+                "今天已赚 ¥\(earned)，芝麻看着\(name)，觉得新鲜感有了轮廓。",
+                "今天已赚 ¥\(earned)，一点新装备的念头，让今天没那么平。",
+                "今天已赚 ¥\(earned)，期待不用立刻发生，先被看见就很好。"
+            ]
+        case .spark:
+            return [
+                "今天已赚 ¥\(earned)，芝麻把这点具体的快乐先替你收好。",
+                "今天已赚 ¥\(earned)，数字背后已经有一点生活可以想象。",
+                "今天已赚 ¥\(earned)，先不讲大道理，给自己留点小盼头。"
+            ]
+        }
     }
 
     private static let items: [RewardItem] = [

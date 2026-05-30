@@ -10,8 +10,8 @@ DIST_DIR="$ROOT_DIR/dist"
 STAGE_DIR="$ROOT_DIR/.build/release-stage"
 PKG_FIX_DIR="$ROOT_DIR/.build/pkg-fix"
 PKG_BOM_ROOT="$ROOT_DIR/.build/pkg-bom-root"
-VERSION="1.1.0"
-BUILD="110"
+VERSION="1.2.0"
+BUILD="120"
 
 CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/module-cache" swift build --disable-sandbox --package-path "$ROOT_DIR"
 
@@ -45,9 +45,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
     <key>CFBundleIconName</key>
     <string>MoneyToday</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1.0</string>
+    <string>1.2.0</string>
     <key>CFBundleVersion</key>
-    <string>110</string>
+    <string>120</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>

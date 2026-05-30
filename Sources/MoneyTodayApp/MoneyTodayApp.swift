@@ -25,11 +25,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configurePanel()
         configureStatusItem()
         viewModel.start()
+        if ProcessInfo.processInfo.environment["MONEYTODAY_OPEN_PANEL"] == "1" {
+            showSnapshotPanel()
+        }
     }
 
     private func configurePanel() {
         let panel = MoneyTodayPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 392, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 410, height: 586),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -41,8 +44,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentViewController = NSHostingController(rootView: MoneyTodayPopover(viewModel: viewModel))
+        panel.contentViewController = NSHostingController(rootView: MoneyTodayPopover(viewModel: viewModel) { [weak self] height in
+            self?.resizePanel(height: height)
+        })
         self.panel = panel
+    }
+
+    private func resizePanel(height: CGFloat) {
+        guard let panel else { return }
+        let current = panel.frame
+        let targetSize = NSSize(width: 410, height: height)
+        guard abs(current.width - targetSize.width) > 0.5 || abs(current.height - targetSize.height) > 0.5 else { return }
+
+        let newOrigin = NSPoint(x: current.origin.x, y: panel.isVisible ? current.maxY - targetSize.height : current.origin.y)
+        panel.setFrame(NSRect(origin: newOrigin, size: targetSize), display: true, animate: panel.isVisible)
     }
 
     private func configureStatusItem() {
@@ -89,6 +104,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(outsideClickMonitor)
             self.outsideClickMonitor = nil
         }
+    }
+
+    private func showSnapshotPanel() {
+        guard let panel else { return }
+        let screenVisibleFrame = NSScreen.main?.visibleFrame ?? .zero
+        let panelSize = panel.frame.size
+        panel.setFrameOrigin(NSPoint(
+            x: screenVisibleFrame.midX - panelSize.width / 2,
+            y: screenVisibleFrame.midY - panelSize.height / 2
+        ))
+        viewModel.setPanelVisible(true)
+        panel.orderFrontRegardless()
+        panel.makeKey()
     }
 
     private func installOutsideClickMonitor() {

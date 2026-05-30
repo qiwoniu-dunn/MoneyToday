@@ -30,9 +30,13 @@ final class MoneyTickerViewModel: ObservableObject {
     private var holidayCalendar = HolidayCalendar(year: Calendar.current.component(.year, from: Date()))
     private var cancellables = Set<AnyCancellable>()
     private var moneyFormatters: [String: NumberFormatter] = [:]
+    private let snapshotDateOverride: Date?
 
     init() {
-        let loaded = settingsStore.load()
+        snapshotDateOverride = Self.snapshotDateFromEnvironment()
+        let loaded = Self.isSnapshotMode
+            ? AppSettings(annualSalary: 720_000, testMode: true, selectedPeriod: .day)
+            : settingsStore.load()
         settings = loaded
         salaryText = loaded.annualSalary > 0 ? Self.inputFormatter.string(from: NSNumber(value: loaded.annualSalary)) ?? "" : ""
         startText = Self.format(time: loaded.workStart)
@@ -44,7 +48,7 @@ final class MoneyTickerViewModel: ObservableObject {
     }
 
     var currentYear: Int {
-        Calendar.current.component(.year, from: Date())
+        Calendar.current.component(.year, from: now)
     }
 
     var syncMessage: String {
@@ -68,7 +72,7 @@ final class MoneyTickerViewModel: ObservableObject {
             earned: snapshot.earnedToday,
             dailyIncome: snapshot.dailyIncome,
             currencyCode: settings.currencyCode,
-            date: Date(),
+            date: now,
             calendar: Calendar.current
         )
     }
@@ -106,6 +110,7 @@ final class MoneyTickerViewModel: ObservableObject {
 
     func start() {
         configureTimer()
+        guard !Self.isSnapshotMode else { return }
         Task {
             await syncHolidays()
         }
@@ -129,7 +134,7 @@ final class MoneyTickerViewModel: ObservableObject {
         }
 
         snapshot = calculator.snapshot(
-            at: Date(),
+            at: now,
             settings: settings,
             holidayCalendar: holidayCalendar,
             calendar: Calendar.current
@@ -276,15 +281,14 @@ final class MoneyTickerViewModel: ObservableObject {
         timer?.invalidate()
         timer = nil
 
-        guard isPanelVisible else { return }
+        guard isPanelVisible, !Self.isSnapshotMode else { return }
 
-        let interval = settings.selectedPeriod == .day ? 0.1 : 1.0
-        let scheduled = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        let scheduled = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refresh()
             }
         }
-        scheduled.tolerance = settings.selectedPeriod == .day ? 0.02 : 0.25
+        scheduled.tolerance = 0.02
         timer = scheduled
     }
 
@@ -317,6 +321,23 @@ final class MoneyTickerViewModel: ObservableObject {
         formatter.unitsStyle = .short
         return formatter
     }()
+
+    private var now: Date {
+        snapshotDateOverride ?? Date()
+    }
+
+    private static var isSnapshotMode: Bool {
+        ProcessInfo.processInfo.environment["MONEYTODAY_SNAPSHOT_MODE"] == "1"
+    }
+
+    private static func snapshotDateFromEnvironment() -> Date? {
+        guard isSnapshotMode else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter.date(from: ProcessInfo.processInfo.environment["MONEYTODAY_SNAPSHOT_DATE"] ?? "2026-05-29 14:25:00")
+    }
 }
 
 struct WeekendDateOption: Identifiable, Equatable {
