@@ -18,7 +18,7 @@
 
 - 项目名称：MoneyToday
 - 当前版本：1.2.0
-- 当前阶段：1.2 已完成本地验收，准备同步 GitHub 并发布 Release
+- 当前阶段：1.2 已发布；2026-06-02 完成同版本奖励区修正，准备覆盖 GitHub Release
 - GitHub 仓库：https://github.com/qiwoniu-dunn/MoneyToday
 - 本地项目路径：`/Users/zhengchaoduan/Desktop/AI/VibeCoding/Moneytoday`
 - 主要平台：macOS

@@ -705,6 +705,7 @@ private struct RewardCompanionScene: View {
     var fallbackKind: RewardIconKind
     var active: Bool
     @State private var poseID = RewardAnimationPose.snapshotID
+    private var layout: RewardSceneLayout { RewardSceneLayout.layout(for: assetName) }
 
     private var frozen: Bool {
         ProcessInfo.processInfo.environment["MONEYTODAY_FREEZE_ANIMATION"] == "1"
@@ -719,24 +720,25 @@ private struct RewardCompanionScene: View {
             ZStack {
                 Ellipse()
                     .fill(.black.opacity(0.32))
-                    .frame(width: 140, height: 19)
+                    .frame(width: layout.shadowSize.width, height: layout.shadowSize.height)
                     .blur(radius: 5)
-                    .offset(x: 12, y: 47)
+                    .offset(layout.shadowOffset)
 
                 RewardAssetIcon(assetName: assetName, fallbackKind: fallbackKind)
-                    .frame(width: 108, height: 108)
-                    .offset(x: 26, y: -8)
-                    .shadow(color: .black.opacity(0.38), radius: 6, x: 0, y: 7)
-                    .zIndex(2)
+                    .frame(width: layout.productSize.width, height: layout.productSize.height)
+                    .offset(layout.productOffset)
+                    .shadow(color: .black.opacity(0.42), radius: 7, x: 0, y: 8)
+                    .zIndex(layout.productZ)
 
                 RewardLoopSpriteView(poseID: displayedPoseID, active: active && !frozen)
-                    .frame(width: 144, height: 164)
-                    .offset(x: -50, y: 9)
-                    .zIndex(3)
+                    .frame(width: layout.catSize.width, height: layout.catSize.height)
+                    .offset(layout.catOffset)
+                    .zIndex(layout.catZ)
             }
-            .frame(width: 158, height: 104)
+            .frame(width: layout.sceneSize.width, height: layout.sceneSize.height)
 
-            RewardItemNamePlate(name: itemName)
+            RewardItemNamePlate(name: itemName, width: layout.plateWidth)
+                .offset(x: layout.plateOffsetX)
         }
         .accessibilityHidden(true)
         .onAppear {
@@ -758,8 +760,95 @@ private struct RewardCompanionScene: View {
     }
 }
 
+private struct RewardSceneLayout {
+    var sceneSize: CGSize = CGSize(width: 168, height: 110)
+    var productSize: CGSize = CGSize(width: 128, height: 112)
+    var productOffset: CGSize = CGSize(width: 28, height: -12)
+    var productZ: Double = 4
+    var catSize: CGSize = CGSize(width: 120, height: 138)
+    var catOffset: CGSize = CGSize(width: -44, height: 13)
+    var catZ: Double = 3
+    var shadowSize: CGSize = CGSize(width: 148, height: 18)
+    var shadowOffset: CGSize = CGSize(width: 12, height: 48)
+    var plateWidth: CGFloat = 136
+    var plateOffsetX: CGFloat = 22
+
+    static func layout(for assetName: String) -> RewardSceneLayout {
+        switch assetName {
+        case "reward-speaker":
+            return RewardSceneLayout(
+                productSize: CGSize(width: 140, height: 108),
+                productOffset: CGSize(width: 34, height: -20),
+                productZ: 5,
+                catSize: CGSize(width: 116, height: 132),
+                catOffset: CGSize(width: -42, height: 16),
+                catZ: 3,
+                shadowSize: CGSize(width: 154, height: 17),
+                shadowOffset: CGSize(width: 12, height: 49),
+                plateWidth: 128,
+                plateOffsetX: 31
+            )
+        case "reward-monitor", "reward-projector", "reward-office-chair":
+            return RewardSceneLayout(
+                productSize: CGSize(width: 142, height: 116),
+                productOffset: CGSize(width: 30, height: -17),
+                productZ: 5,
+                catSize: CGSize(width: 114, height: 130),
+                catOffset: CGSize(width: -46, height: 15),
+                catZ: 3,
+                shadowSize: CGSize(width: 156, height: 18),
+                shadowOffset: CGSize(width: 10, height: 49),
+                plateWidth: 138,
+                plateOffsetX: 26
+            )
+        case "reward-hotel", "reward-travel", "reward-massage":
+            return RewardSceneLayout(
+                productSize: CGSize(width: 132, height: 112),
+                productOffset: CGSize(width: 32, height: -18),
+                productZ: 4,
+                catSize: CGSize(width: 128, height: 146),
+                catOffset: CGSize(width: -38, height: 14),
+                catZ: 3,
+                shadowSize: CGSize(width: 158, height: 18),
+                shadowOffset: CGSize(width: 8, height: 49),
+                plateWidth: 138,
+                plateOffsetX: 27
+            )
+        case "reward-coffee", "reward-tea", "reward-burger-meal", "reward-noodle-bento", "reward-salad", "reward-brunch", "reward-restaurant-meal", "reward-steak", "reward-buffet-hotpot":
+            return RewardSceneLayout(
+                productSize: CGSize(width: 132, height: 116),
+                productOffset: CGSize(width: 31, height: -16),
+                productZ: 5,
+                catSize: CGSize(width: 112, height: 128),
+                catOffset: CGSize(width: -43, height: 17),
+                catZ: 3,
+                shadowSize: CGSize(width: 150, height: 17),
+                shadowOffset: CGSize(width: 12, height: 49),
+                plateWidth: 136,
+                plateOffsetX: 28
+            )
+        case "reward-airpods", "reward-earbuds", "reward-headphones", "reward-keyboard", "reward-keycaps", "reward-mouse", "reward-desk-setup", "reward-tablet", "reward-camera", "reward-game-console":
+            return RewardSceneLayout(
+                productSize: CGSize(width: 136, height: 116),
+                productOffset: CGSize(width: 32, height: -17),
+                productZ: 5,
+                catSize: CGSize(width: 114, height: 130),
+                catOffset: CGSize(width: -43, height: 16),
+                catZ: 3,
+                shadowSize: CGSize(width: 152, height: 17),
+                shadowOffset: CGSize(width: 12, height: 49),
+                plateWidth: 136,
+                plateOffsetX: 30
+            )
+        default:
+            return RewardSceneLayout()
+        }
+    }
+}
+
 private struct RewardItemNamePlate: View {
     var name: String
+    var width: CGFloat
 
     var body: some View {
         Text(name)
@@ -768,16 +857,16 @@ private struct RewardItemNamePlate: View {
             .multilineTextAlignment(.center)
             .lineLimit(2)
             .minimumScaleFactor(0.62)
-            .frame(width: 134)
+            .frame(width: width)
             .frame(minHeight: 24)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 6)
             .padding(.vertical, 4)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.black.opacity(0.32))
+                    .fill(.black.opacity(0.24))
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(UITheme.gold.opacity(0.30), lineWidth: 1)
+                            .stroke(UITheme.gold.opacity(0.22), lineWidth: 1)
                     )
             )
     }
@@ -825,8 +914,7 @@ private enum RewardAnimationPose {
         "06_geyou_guard",
         "07_happy_roll",
         "08_sleep_nearby",
-        "09_star_daydream",
-        "10_paw_wave"
+        "09_star_daydream"
     ]
 
     static func randomID(for assetName: String) -> String {
@@ -847,7 +935,7 @@ private enum RewardAnimationPose {
         case "reward-fitness-class":
             return ["01_run_to_reward", "07_happy_roll"]
         case "reward-sportswear", "reward-sneakers":
-            return ["01_run_to_reward", "10_paw_wave"]
+            return ["01_run_to_reward", "07_happy_roll"]
         case "reward-sports-accessory", "reward-city-ride", "reward-bag":
             return ["01_run_to_reward", "04_push_closer"]
         case "reward-health-scale":
@@ -867,17 +955,17 @@ private enum RewardAnimationPose {
         case "reward-air-fryer", "reward-home-appliance", "reward-coffee-machine", "reward-air-purifier", "reward-hair-dryer", "reward-fragrance":
             return ["02_careful_touch", "09_star_daydream"]
         case "reward-toothbrush":
-            return ["02_careful_touch", "10_paw_wave"]
+            return ["02_careful_touch", "03_orbit_inspect"]
         case "reward-skincare":
-            return ["02_careful_touch", "09_star_daydream", "10_paw_wave"]
+            return ["02_careful_touch", "09_star_daydream"]
         case "reward-train", "reward-flight", "reward-camera":
             return ["01_run_to_reward", "09_star_daydream"]
         case "reward-travel":
             return ["01_run_to_reward", "09_star_daydream", "06_geyou_guard"]
         case "reward-game-console":
-            return ["05_claim_guard", "07_happy_roll", "10_paw_wave"]
+            return ["05_claim_guard", "07_happy_roll", "09_star_daydream"]
         case "reward-projector", "reward-movie", "reward-live-show":
-            return ["07_happy_roll", "09_star_daydream", "10_paw_wave"]
+            return ["07_happy_roll", "09_star_daydream"]
         default:
             return ids
         }
@@ -1367,6 +1455,7 @@ private struct PixelRewardIcon: View {
         case .mouse: return "computermouse.fill"
         case .beauty: return "drop.fill"
         case .headphones: return "headphones"
+        case .speaker: return "hifispeaker.fill"
         case .camera: return "camera.fill"
         case .hotel: return "bed.double.fill"
         case .travel: return "suitcase.fill"

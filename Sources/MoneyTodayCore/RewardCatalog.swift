@@ -50,6 +50,7 @@ public enum RewardIconKind: String, Equatable, Sendable {
     case mouse
     case beauty
     case headphones
+    case speaker
     case camera
     case hotel
     case travel
@@ -166,39 +167,100 @@ public enum RewardCatalog {
     }
 
     private static func titleTemplates(for item: RewardItem) -> [String] {
-        let name = item.name
+        switch item.assetName {
+        case "reward-speaker":
+            return ["把房间调成自己的频道", "今天的背景音乐有了形状", "一点好听的正在靠近"]
+        case "reward-air-fryer":
+            return ["晚饭有了热乎的形状", "厨房忽然轻松一点", "今天适合把饭做得省心"]
+        case "reward-coffee-machine":
+            return ["早晨可以更像样一点", "咖啡香有了自己的位置", "把醒来的仪式留给自己"]
+        case "reward-air-purifier":
+            return ["空气也可以松一口气", "房间开始变得好呼吸", "把清爽留在屋子里"]
+        case "reward-hair-dryer", "reward-haircare":
+            return ["把自己整理得舒服一点", "下班后留一点轻盈", "今天也值得被好好照顾"]
+        case "reward-toothbrush", "reward-health-scale":
+            return ["生活细节被照顾到了", "身体也被轻轻记了一笔", "把舒服放回日常里"]
+        case "reward-projector":
+            return ["把晚上投成一小片影院", "客厅可以临时放个假", "快乐被放大了一点"]
+        default:
+            break
+        }
+
         switch item.iconKind {
         case .coffee, .tea:
-            return ["芝麻把香气递过来了", "冰冰热热的盼头来了", "\(name)在心里排队"]
+            return ["芝麻把香气递过来了", "冰冰热热的盼头来了", "这一口在心里排队"]
         case .meal:
-            return ["今天值得好好吃一口", "胃先替你松了一口气", "\(name)让今天具体一点"]
+            return ["今天值得好好吃一口", "胃先替你松了一口气", "这一餐让今天具体一点"]
         case .ride:
-            return ["通勤路上可以轻一点", "芝麻替你省下一点折腾", "\(name)把路变短一点"]
+            return ["通勤路上可以轻一点", "芝麻替你省下一点折腾", "路好像变短了一点"]
         case .movie:
-            return ["脑子今晚可以放个假", "快乐有了一个小入口", "\(name)像一张暂停键"]
+            return ["脑子今晚可以放个假", "快乐有了一个小入口", "今天有了一张暂停键"]
         case .wellness:
-            return ["肩膀可以先松一口气", "芝麻已经摆好放松姿势", "\(name)听起来很会安慰人"]
+            return ["肩膀可以先松一口气", "芝麻已经摆好放松姿势", "身体开始想被安慰"]
         case .keyboard, .mouse, .laptop:
-            return ["桌面突然顺眼一点", "掌控感回到手边", "\(name)让工作少一点别扭"]
+            return ["桌面突然顺眼一点", "掌控感回到手边", "工作少了一点别扭"]
         case .beauty:
-            return ["房间和自己都可以精致一点", "芝麻替你留了一点香气", "\(name)把今天变柔和一点"]
+            return ["房间和自己都可以精致一点", "芝麻替你留了一点香气", "今天变得柔和一点"]
         case .headphones:
-            return ["把世界调小声一点", "安静也可以是一种奖励", "\(name)让外面远一点"]
+            return ["把世界调小声一点", "安静也可以是一种奖励", "外面的声音远了一点"]
+        case .speaker:
+            return ["把房间调成自己的频道", "今天的背景音乐有了形状", "一点好听的正在靠近"]
         case .camera:
-            return ["把生活拍得像样一点", "不赶时间的画面出现了", "\(name)给生活一点镜头感"]
+            return ["把生活拍得像样一点", "不赶时间的画面出现了", "生活多了一点镜头感"]
         case .hotel:
-            return ["脑子先去住一晚", "芝麻替你留了一点喘气空间", "\(name)听起来就很会休息"]
+            return ["脑子先去住一晚", "芝麻替你留了一点喘气空间", "好好休息有了画面"]
         case .travel:
-            return ["心已经先出门了", "芝麻把周末想远了一点", "\(name)让今天有了出口"]
+            return ["心已经先出门了", "芝麻把周末想远了一点", "今天有了一个出口"]
         case .phone:
-            return ["新鲜感在屏幕里亮了一下", "\(name)让期待有了形状", "芝麻看见了一点新装备的光"]
+            return ["新鲜感在屏幕里亮了一下", "期待有了形状", "芝麻看见了一点新装备的光"]
         case .spark:
-            return ["芝麻把小确幸摆好了", "今天多了一点可期待的东西", "\(name)让数字有了温度"]
+            return ["芝麻把小确幸摆好了", "今天多了一点可期待的东西", "数字有了温度"]
         }
     }
 
     private static func detailTemplates(for item: RewardItem, earned: Int) -> [String] {
         let name = item.name
+        switch item.assetName {
+        case "reward-speaker":
+            return [
+                "今天已赚 ¥\(earned)，芝麻觉得晚上应该有一点只属于你的背景音乐。",
+                "今天已赚 ¥\(earned)，把房间交给音乐一会儿，外面的事就远一点。",
+                "今天已赚 ¥\(earned)，下班后的空气可以多一点鼓点和松弛。"
+            ]
+        case "reward-air-fryer":
+            return [
+                "今天已赚 ¥\(earned)，芝麻已经想到一份热乎又省心的晚饭。",
+                "今天已赚 ¥\(earned)，厨房不用太隆重，也能把日子烤得香一点。",
+                "今天已赚 ¥\(earned)，晚上有点热气，心情就不至于太硬。"
+            ]
+        case "reward-coffee-machine":
+            return [
+                "今天已赚 ¥\(earned)，明天醒来时可以先有一口认真咖啡。",
+                "今天已赚 ¥\(earned)，芝麻把一点早晨的仪式感放进愿望里。",
+                "今天已赚 ¥\(earned)，让开始工作之前的几分钟更像自己的。"
+            ]
+        case "reward-air-purifier":
+            return [
+                "今天已赚 ¥\(earned)，回到房间时，空气也可以替你放松一点。",
+                "今天已赚 ¥\(earned)，芝麻想把屋子整理成更好呼吸的样子。",
+                "今天已赚 ¥\(earned)，清爽一点的空间，会让晚上没那么堵。"
+            ]
+        case "reward-hair-dryer", "reward-haircare":
+            return [
+                "今天已赚 ¥\(earned)，芝麻觉得今晚可以把自己照顾得轻盈一点。",
+                "今天已赚 ¥\(earned)，整理好头发，也像把今天重新收了一下尾。",
+                "今天已赚 ¥\(earned)，不必很隆重，但可以对自己细致一点。"
+            ]
+        case "reward-projector":
+            return [
+                "今天已赚 ¥\(earned)，芝麻已经把晚上想成一小块私人影院。",
+                "今天已赚 ¥\(earned)，客厅灯一暗，今天的辛苦就可以退后一点。",
+                "今天已赚 ¥\(earned)，快乐被放大到墙上，会比较容易相信。"
+            ]
+        default:
+            break
+        }
+
         switch item.iconKind {
         case .coffee, .tea:
             return [
@@ -247,6 +309,12 @@ public enum RewardCatalog {
                 "今天已赚 ¥\(earned)，芝麻把\(name)放进今天的愿望清单里。",
                 "今天已赚 ¥\(earned)，外面的吵闹可以先被关小声。",
                 "今天已赚 ¥\(earned)，安静一点，快乐就更容易被听见。"
+            ]
+        case .speaker:
+            return [
+                "今天已赚 ¥\(earned)，芝麻觉得晚上应该有一点只属于你的背景音乐。",
+                "今天已赚 ¥\(earned)，把房间交给音乐一会儿，外面的事就远一点。",
+                "今天已赚 ¥\(earned)，下班后的空气可以多一点鼓点和松弛。"
             ]
         case .camera:
             return [
@@ -394,7 +462,7 @@ public enum RewardCatalog {
         RewardItem(id: "500-9-2", tier: 500, step: 9, priceCNY: 450, name: "泰到位深度 SPA", category: "按摩放松", assetName: "reward-massage", iconKind: .wellness),
         RewardItem(id: "500-9-3", tier: 500, step: 9, priceCNY: 450, name: "Adidas Ultraboost", category: "运动鞋履", assetName: "reward-sneakers", iconKind: .wellness),
         RewardItem(id: "500-9-4", tier: 500, step: 9, priceCNY: 450, name: "Jo Malone 香水", category: "香氛护肤", assetName: "reward-fragrance", iconKind: .beauty),
-        RewardItem(id: "500-9-5", tier: 500, step: 9, priceCNY: 450, name: "Bose 便携音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .headphones),
+        RewardItem(id: "500-9-5", tier: 500, step: 9, priceCNY: 450, name: "Bose 便携音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .speaker),
         RewardItem(id: "500-9-6", tier: 500, step: 9, priceCNY: 450, name: "香格里拉自助餐", category: "自助火锅", assetName: "reward-buffet-hotpot", iconKind: .meal),
         RewardItem(id: "500-10-1", tier: 500, step: 10, priceCNY: 500, name: "Wolfgang's Steakhouse 单人餐", category: "牛排餐厅", assetName: "reward-steak", iconKind: .meal),
         RewardItem(id: "500-10-2", tier: 500, step: 10, priceCNY: 500, name: "Ergotron 显示器支架", category: "桌面装备", assetName: "reward-desk-setup", iconKind: .keyboard),
@@ -514,7 +582,7 @@ public enum RewardCatalog {
         RewardItem(id: "2000-9-2", tier: 2000, step: 9, priceCNY: 1800, name: "携程周边两日游", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
         RewardItem(id: "2000-9-3", tier: 2000, step: 9, priceCNY: 1800, name: "保友金豪人体工学椅", category: "桌面装备", assetName: "reward-office-chair", iconKind: .keyboard),
         RewardItem(id: "2000-9-4", tier: 2000, step: 9, priceCNY: 1800, name: "DJI Osmo Action", category: "影像设备", assetName: "reward-camera", iconKind: .camera),
-        RewardItem(id: "2000-9-5", tier: 2000, step: 9, priceCNY: 1800, name: "Marshall 音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .headphones),
+        RewardItem(id: "2000-9-5", tier: 2000, step: 9, priceCNY: 1800, name: "Marshall 音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .speaker),
         RewardItem(id: "2000-9-6", tier: 2000, step: 9, priceCNY: 1800, name: "希尔顿酒店周末房", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
         RewardItem(id: "2000-10-1", tier: 2000, step: 10, priceCNY: 2000, name: "Club Med 周末套餐", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
         RewardItem(id: "2000-10-2", tier: 2000, step: 10, priceCNY: 2000, name: "Coach 通勤包", category: "通勤包袋", assetName: "reward-bag", iconKind: .beauty),
@@ -556,10 +624,10 @@ public enum RewardCatalog {
         RewardItem(id: "3000-6-2", tier: 3000, step: 6, priceCNY: 1800, name: "携程周边两日游", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
         RewardItem(id: "3000-6-3", tier: 3000, step: 6, priceCNY: 1800, name: "保友金豪人体工学椅", category: "桌面装备", assetName: "reward-office-chair", iconKind: .keyboard),
         RewardItem(id: "3000-6-4", tier: 3000, step: 6, priceCNY: 1800, name: "DJI Osmo Action", category: "影像设备", assetName: "reward-camera", iconKind: .camera),
-        RewardItem(id: "3000-6-5", tier: 3000, step: 6, priceCNY: 1800, name: "Marshall 音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .headphones),
+        RewardItem(id: "3000-6-5", tier: 3000, step: 6, priceCNY: 1800, name: "Marshall 音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .speaker),
         RewardItem(id: "3000-6-6", tier: 3000, step: 6, priceCNY: 1800, name: "希尔顿周末房", category: "酒店度假", assetName: "reward-hotel", iconKind: .hotel),
         RewardItem(id: "3000-7-1", tier: 3000, step: 7, priceCNY: 2100, name: "国内往返机票", category: "航空出行", assetName: "reward-flight", iconKind: .ride),
-        RewardItem(id: "3000-7-2", tier: 3000, step: 7, priceCNY: 2100, name: "Marshall 音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .headphones),
+        RewardItem(id: "3000-7-2", tier: 3000, step: 7, priceCNY: 2100, name: "Marshall 音箱", category: "数码音箱", assetName: "reward-speaker", iconKind: .speaker),
         RewardItem(id: "3000-7-3", tier: 3000, step: 7, priceCNY: 2100, name: "安缦周边餐饮体验", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
         RewardItem(id: "3000-7-4", tier: 3000, step: 7, priceCNY: 2100, name: "Club Med 周末套餐", category: "旅行体验", assetName: "reward-travel", iconKind: .travel),
         RewardItem(id: "3000-7-5", tier: 3000, step: 7, priceCNY: 2100, name: "Coach 通勤包", category: "通勤包袋", assetName: "reward-bag", iconKind: .beauty),

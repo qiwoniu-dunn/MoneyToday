@@ -173,11 +173,19 @@ struct MoneyTodayChecks {
                 assert(!reward.title.contains(term), "Forbidden reward title term: \(term)")
                 assert(!reward.detail.contains(term), "Forbidden reward detail term: \(term)")
             }
+            assert(!reward.title.contains(reward.itemName), "Reward title should not duplicate the visible item label")
             assert(!reward.detail.contains("杯奶茶"), "Reward copy should not stack low-price items")
         }
 
         let sameDayAgain = RewardCatalog.reward(earned: 500, dailyIncome: 1000, currencyCode: "CNY", date: date, calendar: calendar)
         assert(mid == sameDayAgain)
+
+        let speakerDate = try Self.date("2026-05-26 14:00:00")
+        let speaker = RewardCatalog.reward(earned: 2_227, dailyIncome: 3_000, currencyCode: "CNY", date: speakerDate, calendar: calendar)
+        assert(speaker.assetName == "reward-speaker")
+        assert(!speaker.title.contains(speaker.itemName), "Speaker title should leave product identity to the item label")
+        assert(!speaker.title.contains("调小声") && !speaker.title.contains("外面远一点"), "Speaker title should not use headphone copy")
+        assert(!speaker.detail.contains("调小声") && !speaker.detail.contains("关小声"), "Speaker detail should not use headphone copy")
 
         var weekMessages = Set<String>()
         for offset in 0..<7 {
