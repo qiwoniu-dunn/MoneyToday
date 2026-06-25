@@ -81,7 +81,7 @@ MoneyToday 内置了一套面向中国大陆一线城市生活语境的人民币
 
 ## 安装使用
 
-从 Release 下载 `MoneyToday-v1.2.0.zip`，解压后打开 `MoneyToday.app`。
+从 Release 下载 `MoneyToday-v1.2.1.zip`，解压后打开 `MoneyToday.app`。
 
 如果 macOS 提示来自未识别开发者，可以：
 
@@ -136,4 +136,5 @@ CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache" swift run --disable-sandbox M
 - [1.0 发布记录](./docs/release-1.0.0.md)
 - [1.1 发布记录](./docs/release-1.1.0.md)
 - [1.2 发布记录](./docs/release-1.2.0.md)
+- [1.2.1 发布记录](./docs/release-1.2.1.md)
 - [产品思考沉淀](./docs/product-thinking.md)
