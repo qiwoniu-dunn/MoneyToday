@@ -35,7 +35,7 @@ final class MoneyTickerViewModel: ObservableObject {
     init() {
         snapshotDateOverride = Self.snapshotDateFromEnvironment()
         let loaded = Self.isSnapshotMode
-            ? AppSettings(annualSalary: 720_000, testMode: true, selectedPeriod: .day)
+            ? AppSettings(annualSalary: 720_000, testMode: true, selectedPeriod: Self.snapshotPeriodFromEnvironment())
             : settingsStore.load()
         settings = loaded
         salaryText = loaded.annualSalary > 0 ? Self.inputFormatter.string(from: NSNumber(value: loaded.annualSalary)) ?? "" : ""
@@ -337,6 +337,14 @@ final class MoneyTickerViewModel: ObservableObject {
         formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter.date(from: ProcessInfo.processInfo.environment["MONEYTODAY_SNAPSHOT_DATE"] ?? "2026-05-29 14:25:00")
+    }
+
+    private static func snapshotPeriodFromEnvironment() -> PeriodKind {
+        guard isSnapshotMode,
+              let value = ProcessInfo.processInfo.environment["MONEYTODAY_SNAPSHOT_PERIOD"],
+              let period = PeriodKind(rawValue: value)
+        else { return .day }
+        return period
     }
 }
 

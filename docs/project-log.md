@@ -261,3 +261,23 @@ https://github.com/qiwoniu-dunn/MoneyToday
 - 右侧商品舞台按资产类型调整尺寸和层级，让商品成为主角，芝麻作为陪伴互动角色。
 - 移除用户不喜欢的举白旗/抬爪小庆祝姿态随机选择。
 - 增加奖励文案回归检查，防止标题重复商品名和音箱误用耳机文案。
+
+## 2026-06-25：1.2 同版本前端视觉和弹层体验修正
+
+本轮继续保持 `1.2.0` 版本号，用于覆盖现有 GitHub Release。目标是把用户确认的第一张深色金色设计稿落到真实 macOS 菜单栏弹层中，同时修掉试用中发现的高度、动效和边界问题。
+
+本轮完成：
+
+- 主界面按深色金色仪表盘方向重做，保留 notch 异形、金属描边、大号金额、绿色进度条和芝麻奖励舞台。
+- 设置页同步改成深色金色列表结构，A/B 面切换用 spring 过渡。
+- 日视图保持奖励舞台高度；周/月/年自动收成 compact 高度，切 tab 时面板高度跟随内容平滑缩放。
+- `NSPanel` resize 保持顶部挂点不动，底部向上/向下收放，避免菜单栏 popover 跳位。
+- 修复 SwiftPM debug 运行时资源路径，只查 `Bundle.main` 导致芝麻动画 fallback 的问题，改为兼容 `Bundle.main` 和 `Bundle.module`。
+- 关闭系统矩形窗口阴影，保留 SwiftUI 异形面板阴影，移除 notch 和圆角外露的淡灰色矩形边界。
+- 增加 `MONEYTODAY_SNAPSHOT_PERIOD` 环境变量，方便固定日/周/月/年页面做验收。
+
+验证命令：
+
+- `swift build --disable-sandbox`
+- `swift run --disable-sandbox MoneyTodayChecks`
+- `./scripts/package_app.sh`

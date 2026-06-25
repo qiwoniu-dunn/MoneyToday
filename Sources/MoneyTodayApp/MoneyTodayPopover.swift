@@ -4,24 +4,99 @@ import SwiftUI
 
 private enum UITheme {
     static let panelWidth: CGFloat = 410
-    static let panelHeight: CGFloat = 586
-    static let settingsPanelHeight: CGFloat = 720
-    static let pagePadding: CGFloat = 24
-    static let corner: CGFloat = 24
-    static let cardCorner: CGFloat = 17
-    static let mint = Color(red: 0.56, green: 0.95, blue: 0.62)
-    static let mintDeep = Color(red: 0.23, green: 0.72, blue: 0.38)
-    static let gold = Color(red: 0.96, green: 0.75, blue: 0.42)
-    static let goldDeep = Color(red: 0.58, green: 0.41, blue: 0.21)
-    static let ink = Color(red: 0.96, green: 0.91, blue: 0.80)
-    static let inkDim = Color(red: 0.77, green: 0.72, blue: 0.64)
-    static let muted = Color(red: 0.58, green: 0.59, blue: 0.56)
-    static let panelDark = Color(red: 0.06, green: 0.075, blue: 0.08)
-    static let panelWarm = Color(red: 0.19, green: 0.17, blue: 0.13)
-    static let hairline = Color.white.opacity(0.105)
-    static let fill = Color.black.opacity(0.20)
-    static let fillStrong = Color.black.opacity(0.34)
+    static let panelHeight: CGFloat = 612
+    static let compactPanelHeight: CGFloat = 528
+    static let settingsPanelHeight: CGFloat = 648
+    static let pagePadding: CGFloat = 20
+    static let pageTopPadding: CGFloat = 56
+    static let pageBottomPadding: CGFloat = 18
+    static let notchHeight: CGFloat = 18
+    static let corner: CGFloat = 26
+    static let cardCorner: CGFloat = 20
+    static let mint = Color(red: 0.46, green: 0.88, blue: 0.43)
+    static let mintDeep = Color(red: 0.20, green: 0.63, blue: 0.28)
+    static let gold = Color(red: 0.90, green: 0.64, blue: 0.30)
+    static let goldBright = Color(red: 1.00, green: 0.82, blue: 0.50)
+    static let goldDeep = Color(red: 0.48, green: 0.34, blue: 0.18)
+    static let ink = Color(red: 0.95, green: 0.88, blue: 0.72)
+    static let inkDim = Color(red: 0.72, green: 0.67, blue: 0.56)
+    static let muted = Color(red: 0.50, green: 0.50, blue: 0.45)
+    static let panelDark = Color(red: 0.055, green: 0.060, blue: 0.052)
+    static let panelWarm = Color(red: 0.16, green: 0.14, blue: 0.105)
+    static let panelMoss = Color(red: 0.08, green: 0.115, blue: 0.085)
+    static let hairline = Color.white.opacity(0.10)
+    static let goldLine = Color(red: 0.88, green: 0.68, blue: 0.44).opacity(0.58)
+    static let fill = Color.black.opacity(0.30)
+    static let fillStrong = Color.black.opacity(0.44)
     static let rowFill = Color.white.opacity(0.045)
+
+    static func dashboardHeight(for period: PeriodKind) -> CGFloat {
+        period == .day ? panelHeight : compactPanelHeight
+    }
+}
+
+private enum MoneyTodayResources {
+    static func url(forResource name: String, withExtension ext: String?, subdirectory: String? = nil) -> URL? {
+        for bundle in candidates {
+            if let url = bundle.url(forResource: name, withExtension: ext, subdirectory: subdirectory) {
+                return url
+            }
+        }
+        return nil
+    }
+
+    private static var candidates: [Bundle] {
+        var bundles = [Bundle.main, Bundle.module]
+        var seen = Set<String>()
+        bundles.removeAll { bundle in
+            let path = bundle.bundlePath
+            if seen.contains(path) { return true }
+            seen.insert(path)
+            return false
+        }
+        return bundles
+    }
+}
+
+private struct MoneyPopoverShape: Shape {
+    var cornerRadius: CGFloat
+    var notchHeight: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let radius = min(cornerRadius, min(rect.width, rect.height) / 2)
+        let bodyTop = rect.minY + notchHeight
+        let notchHalfWidth: CGFloat = 22
+        let notchShoulder: CGFloat = 34
+        let midX = rect.midX
+
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + radius, y: bodyTop))
+        path.addLine(to: CGPoint(x: midX - notchShoulder, y: bodyTop))
+        path.addQuadCurve(
+            to: CGPoint(x: midX - notchHalfWidth, y: bodyTop - 3),
+            control: CGPoint(x: midX - notchShoulder + 7, y: bodyTop)
+        )
+        path.addLine(to: CGPoint(x: midX - 8, y: rect.minY + 3))
+        path.addQuadCurve(
+            to: CGPoint(x: midX + 8, y: rect.minY + 3),
+            control: CGPoint(x: midX, y: rect.minY - 3)
+        )
+        path.addLine(to: CGPoint(x: midX + notchHalfWidth, y: bodyTop - 3))
+        path.addQuadCurve(
+            to: CGPoint(x: midX + notchShoulder, y: bodyTop),
+            control: CGPoint(x: midX + notchShoulder - 7, y: bodyTop)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX - radius, y: bodyTop))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX, y: bodyTop + radius), control: CGPoint(x: rect.maxX, y: bodyTop))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX - radius, y: rect.maxY), control: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+        path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - radius), control: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: bodyTop + radius))
+        path.addQuadCurve(to: CGPoint(x: rect.minX + radius, y: bodyTop), control: CGPoint(x: rect.minX, y: bodyTop))
+        path.closeSubpath()
+        return path
+    }
 }
 
 struct MoneyTodayPopover: View {
@@ -34,7 +109,9 @@ struct MoneyTodayPopover: View {
     }
 
     private var desiredPanelHeight: CGFloat {
-        needsInitialSetup || isShowingSettings ? UITheme.settingsPanelHeight : UITheme.panelHeight
+        needsInitialSetup || isShowingSettings
+            ? UITheme.settingsPanelHeight
+            : UITheme.dashboardHeight(for: viewModel.selectedPeriod)
     }
 
     var body: some View {
@@ -44,9 +121,9 @@ struct MoneyTodayPopover: View {
 
             LinearGradient(
                 colors: [
-                    UITheme.panelDark.opacity(0.94),
-                    UITheme.panelWarm.opacity(0.76),
-                    Color(red: 0.05, green: 0.08, blue: 0.09).opacity(0.88)
+                    UITheme.panelWarm.opacity(0.94),
+                    UITheme.panelDark.opacity(0.98),
+                    UITheme.panelMoss.opacity(0.92)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -63,28 +140,45 @@ struct MoneyTodayPopover: View {
                     mode: needsInitialSetup ? .initial : .edit,
                     onDone: { isShowingSettings = false }
                 )
-                .transition(.opacity.combined(with: .scale(scale: 0.985)))
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .trailing)),
+                    removal: .opacity.combined(with: .move(edge: .leading))
+                ))
             } else {
                 DashboardScreen(viewModel: viewModel, onSettings: { isShowingSettings = true })
-                    .transition(.opacity.combined(with: .scale(scale: 0.985)))
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .leading)),
+                        removal: .opacity.combined(with: .move(edge: .trailing))
+                    ))
             }
         }
         .frame(width: UITheme.panelWidth, height: desiredPanelHeight)
-        .clipShape(RoundedRectangle(cornerRadius: UITheme.corner, style: .continuous))
+        .clipShape(MoneyPopoverShape(cornerRadius: UITheme.corner, notchHeight: UITheme.notchHeight))
         .overlay(
-            RoundedRectangle(cornerRadius: UITheme.corner, style: .continuous)
+            MoneyPopoverShape(cornerRadius: UITheme.corner, notchHeight: UITheme.notchHeight)
                 .stroke(
                     LinearGradient(
-                        colors: [Color.white.opacity(0.22), UITheme.gold.opacity(0.16), Color.white.opacity(0.07)],
+                        colors: [
+                            Color.white.opacity(0.42),
+                            UITheme.goldBright.opacity(0.56),
+                            Color.white.opacity(0.10),
+                            UITheme.gold.opacity(0.32)
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                    lineWidth: 1
+                    lineWidth: 1.35
                 )
         )
-        .shadow(color: .black.opacity(0.46), radius: 22, x: 0, y: 18)
-        .animation(.easeInOut(duration: 0.18), value: needsInitialSetup)
-        .animation(.easeInOut(duration: 0.18), value: isShowingSettings)
+        .overlay(
+            MoneyPopoverShape(cornerRadius: UITheme.corner - 5, notchHeight: UITheme.notchHeight)
+                .stroke(Color.black.opacity(0.42), lineWidth: 1)
+                .padding(4)
+        )
+        .shadow(color: .black.opacity(0.58), radius: 26, x: 0, y: 18)
+        .animation(.spring(response: 0.30, dampingFraction: 0.88), value: needsInitialSetup)
+        .animation(.spring(response: 0.30, dampingFraction: 0.88), value: isShowingSettings)
+        .animation(.spring(response: 0.30, dampingFraction: 0.90), value: viewModel.selectedPeriod)
         .onAppear { onPanelHeightChange(desiredPanelHeight) }
         .onChange(of: desiredPanelHeight) { height in
             onPanelHeightChange(height)
@@ -101,33 +195,49 @@ private struct DashboardScreen: View {
     private var mainLimit: Double { isDay ? viewModel.snapshot.dailyIncome : viewModel.snapshot.period.limit }
     private var mainProgress: Double { isDay ? viewModel.snapshot.progress : viewModel.snapshot.period.progress }
     private var hidden: Bool { viewModel.settings.hideDashboardAmounts }
+    private var progressPercent: String {
+        hidden ? "***" : "\(Int((mainProgress * 100).rounded()))%"
+    }
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 9) {
             header
             periodPicker
             earningsBlock
             metricStrip
-            if isDay {
-                rewardScene
-            } else {
-                periodSummary
+            ZStack(alignment: .top) {
+                if isDay {
+                    rewardScene
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.985, anchor: .top)),
+                            removal: .opacity.combined(with: .move(edge: .bottom)).combined(with: .opacity)
+                        ))
+                } else {
+                    periodSummary
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .bottom)),
+                            removal: .opacity.combined(with: .scale(scale: 0.985, anchor: .top)).combined(with: .opacity)
+                        ))
+                }
             }
         }
-        .padding(UITheme.pagePadding)
+        .padding(.top, UITheme.pageTopPadding)
+        .padding(.horizontal, UITheme.pagePadding)
+        .padding(.bottom, UITheme.pageBottomPadding)
+        .animation(.spring(response: 0.30, dampingFraction: 0.90), value: viewModel.selectedPeriod)
     }
 
     private var header: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 13) {
             AppIconMark()
-                .frame(width: 42, height: 42)
-                .shadow(color: UITheme.gold.opacity(0.18), radius: 8, x: 0, y: 4)
+                .frame(width: 44, height: 44)
+                .shadow(color: UITheme.gold.opacity(0.35), radius: 10, x: 0, y: 5)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("窝囊费查看器")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .heavy, design: .rounded))
                     .foregroundStyle(UITheme.ink)
-                    .shadow(color: .black.opacity(0.35), radius: 2, x: 0, y: 1)
+                    .shadow(color: .black.opacity(0.42), radius: 2, x: 0, y: 1)
                 HStack(spacing: 6) {
                     Circle()
                         .fill(UITheme.mint)
@@ -156,33 +266,42 @@ private struct DashboardScreen: View {
                     viewModel.setPeriod(period)
                 } label: {
                     Text(period.title)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
                         .foregroundStyle(viewModel.selectedPeriod == period ? UITheme.ink : UITheme.inkDim.opacity(0.78))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 34)
+                        .frame(height: 38)
                         .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(viewModel.selectedPeriod == period ? UITheme.gold.opacity(0.22) : Color.clear)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(viewModel.selectedPeriod == period ? UITheme.gold.opacity(0.76) : Color.clear, lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 19, style: .continuous)
+                                .fill(
+                                    viewModel.selectedPeriod == period
+                                        ? AnyShapeStyle(LinearGradient(
+                                            colors: [UITheme.goldBright.opacity(0.86), UITheme.gold.opacity(0.62), UITheme.goldDeep.opacity(0.46)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ))
+                                        : AnyShapeStyle(Color.clear)
                                 )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                                        .stroke(viewModel.selectedPeriod == period ? UITheme.goldBright.opacity(0.64) : Color.clear, lineWidth: 1)
+                                )
+                                .shadow(color: viewModel.selectedPeriod == period ? UITheme.gold.opacity(0.20) : .clear, radius: 6, x: 0, y: 2)
                         )
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(4)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.24)))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(UITheme.hairline, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(.black.opacity(0.30)))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(UITheme.goldLine.opacity(0.46), lineWidth: 1))
     }
 
     private var earningsBlock: some View {
-        VStack(alignment: .leading, spacing: 13) {
+        VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .firstTextBaseline) {
                 Text(viewModel.selectedPeriod.metricTitle)
-                    .font(.system(size: 12, weight: .heavy, design: .rounded))
-                    .foregroundStyle(UITheme.inkDim.opacity(0.72))
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(UITheme.inkDim.opacity(0.82))
                 Spacer()
                 if viewModel.settings.testMode {
                     Text("测试模式")
@@ -201,51 +320,98 @@ private struct DashboardScreen: View {
             .animation(.linear(duration: 0.08), value: mainAmount)
 
             GreenProgressBar(value: mainProgress)
-                .frame(height: 8)
+                .frame(height: 10)
+
+            HStack {
+                Text("进度")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(UITheme.inkDim)
+                Text(progressPercent)
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .foregroundStyle(UITheme.mint)
+                    .monospacedDigit()
+                Spacer()
+                Text("上限 \(viewModel.displayMoney(mainLimit, hidden: hidden))")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(UITheme.inkDim)
+                    .monospacedDigit()
+            }
         }
-        .padding(.vertical, 18)
+        .padding(.vertical, 12)
         .padding(.horizontal, 18)
         .background(
             GlassCard(
                 tint: LinearGradient(
-                    colors: [.white.opacity(0.055), UITheme.gold.opacity(0.055), .black.opacity(0.12)],
+                    colors: [Color.white.opacity(0.055), UITheme.gold.opacity(0.055), Color.black.opacity(0.20)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ),
-                stroke: .white.opacity(0.12),
-                radius: 18
+                stroke: UITheme.goldLine.opacity(0.55),
+                radius: UITheme.cardCorner
             )
         )
     }
 
     private var metricStrip: some View {
-        HStack(spacing: 8) {
-            if isDay {
-                MetricPill(icon: "clock.fill", title: "每秒收入", value: viewModel.displayMoney(viewModel.snapshot.perSecondIncome, fractionDigits: 4, hidden: hidden))
-                MetricPill(icon: "crown.fill", title: "今日上限", value: viewModel.displayMoney(viewModel.snapshot.dailyIncome, hidden: hidden))
-                MetricPill(icon: "calendar", title: "全年工作日", value: "\(viewModel.snapshot.workdayCount) 天")
-            } else {
-                MetricPill(icon: "calendar", title: "\(viewModel.selectedPeriod.title)工作日", value: "\(viewModel.snapshot.period.workdayCount) 天")
-                MetricPill(icon: "crown.fill", title: "周期上限", value: viewModel.displayMoney(mainLimit, hidden: hidden))
-                MetricPill(icon: "sun.max.fill", title: "今日上限", value: viewModel.displayMoney(viewModel.snapshot.dailyIncome, hidden: hidden))
-            }
+        HStack(spacing: 0) {
+            MetricPill(
+                icon: isDay ? "clock.fill" : "calendar",
+                title: isDay ? "每秒收入" : "\(viewModel.selectedPeriod.title)工作日",
+                value: isDay ? viewModel.displayMoney(viewModel.snapshot.perSecondIncome, fractionDigits: 4, hidden: hidden) : "\(viewModel.snapshot.period.workdayCount) 天"
+            )
+            MetricDivider()
+            MetricPill(
+                icon: "crown.fill",
+                title: isDay ? "今日上限" : "周期上限",
+                value: viewModel.displayMoney(mainLimit, hidden: hidden)
+            )
+            MetricDivider()
+            MetricPill(
+                icon: isDay ? "calendar" : "sun.max.fill",
+                title: isDay ? "全年工作日" : "今日上限",
+                value: isDay ? "\(viewModel.snapshot.workdayCount) 天" : viewModel.displayMoney(viewModel.snapshot.dailyIncome, hidden: hidden)
+            )
         }
+        .padding(.vertical, 7)
+        .background(GlassCard(tint: .black.opacity(0.30), stroke: UITheme.goldLine.opacity(0.38), radius: 18))
     }
 
     private var rewardScene: some View {
         let reward = viewModel.rewardMessage
-        return HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 7) {
+        return HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(reward.title)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .font(.system(size: 17, weight: .heavy, design: .rounded))
                     .foregroundStyle(UITheme.ink)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.78)
+                    .minimumScaleFactor(0.70)
                 Text(reward.detail)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(UITheme.inkDim.opacity(0.82))
-                    .lineLimit(3)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(UITheme.inkDim.opacity(0.88))
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 7) {
+                    Image(systemName: "gift.fill")
+                        .font(.system(size: 13, weight: .bold))
+                    Text(reward.itemName)
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundStyle(UITheme.ink)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(.black.opacity(0.30))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(UITheme.goldLine.opacity(0.70), lineWidth: 1)
+                        )
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -255,20 +421,21 @@ private struct DashboardScreen: View {
                 fallbackKind: reward.iconKind,
                 active: viewModel.isPanelVisible
             )
-            .frame(maxWidth: .infinity, minHeight: 136)
+            .frame(width: 152)
+            .frame(minHeight: 104)
         }
-        .padding(.vertical, 15)
-        .padding(.horizontal, 16)
-        .frame(minHeight: 156)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 15)
+        .frame(minHeight: 128)
         .background(
             GlassCard(
                 tint: LinearGradient(
-                    colors: [Color(red: 0.13, green: 0.15, blue: 0.14).opacity(0.78), UITheme.gold.opacity(0.055)],
+                    colors: [Color.white.opacity(0.060), UITheme.gold.opacity(0.060), Color.black.opacity(0.24)],
                     startPoint: .leading,
                     endPoint: .trailing
                 ),
-                stroke: UITheme.gold.opacity(0.34),
-                radius: 18
+                stroke: UITheme.goldLine.opacity(0.68),
+                radius: 20
             )
         )
     }
@@ -303,11 +470,16 @@ private struct SettingsScreen: View {
     @State private var page: Page = .main
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 13) {
             header
             content
+                .id(page)
+                .transition(.opacity.combined(with: .move(edge: .trailing)))
         }
-        .padding(UITheme.pagePadding)
+        .padding(.top, UITheme.pageTopPadding)
+        .padding(.horizontal, UITheme.pagePadding)
+        .padding(.bottom, UITheme.pageBottomPadding)
+        .animation(.spring(response: 0.26, dampingFraction: 0.90), value: page)
     }
 
     private var header: some View {
@@ -370,19 +542,22 @@ private struct SettingsScreen: View {
     }
 
     private var mainSettings: some View {
-        VStack(spacing: 16) {
-            VStack(spacing: 16) {
-                settingsForm
-                navigationRows
-                switches
-                holidaySync
-            }
-            .padding(14)
-            .background(GlassCard(tint: .black.opacity(0.15), stroke: .white.opacity(0.10), radius: 18))
+        ScrollView {
+            VStack(spacing: 13) {
+                VStack(spacing: 13) {
+                    settingsForm
+                    navigationRows
+                    switches
+                    holidaySync
+                }
+                .padding(13)
+                .background(GlassCard(tint: .black.opacity(0.24), stroke: UITheme.goldLine.opacity(0.40), radius: 18))
 
-            primaryButton
-            footer
+                primaryButton
+                footer
+            }
         }
+        .scrollIndicators(.hidden)
     }
 
     private var settingsForm: some View {
@@ -515,7 +690,7 @@ private struct SettingsScreen: View {
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [Color(red: 0.96, green: 0.82, blue: 0.56), Color(red: 0.73, green: 0.50, blue: 0.25)],
+                            colors: [UITheme.goldBright.opacity(0.92), UITheme.gold.opacity(0.78), UITheme.goldDeep.opacity(0.62)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
@@ -525,6 +700,7 @@ private struct SettingsScreen: View {
                             .stroke(Color.white.opacity(0.28), lineWidth: 1)
                     )
             )
+            .shadow(color: UITheme.gold.opacity(0.18), radius: 8, x: 0, y: 5)
         }
         .buttonStyle(.plain)
     }
@@ -653,27 +829,46 @@ private struct MetricPill: View {
     var value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(UITheme.gold)
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [UITheme.goldBright, UITheme.gold],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            VStack(spacing: 4) {
                 Text(title)
                     .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundStyle(UITheme.inkDim.opacity(0.8))
+                    .foregroundStyle(UITheme.inkDim.opacity(0.86))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(value)
+                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                    .foregroundStyle(UITheme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.54)
+                    .monospacedDigit()
             }
-            Text(value)
-                .font(.system(size: 15, weight: .bold, design: .monospaced))
-                .foregroundStyle(UITheme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.54)
-                .monospacedDigit()
-                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-        .padding(.horizontal, 12)
-        .background(GlassCard(tint: .black.opacity(0.16), stroke: .white.opacity(0.08), radius: 13))
+        .frame(maxWidth: .infinity, minHeight: 66)
+        .padding(.horizontal, 8)
+    }
+}
+
+private struct MetricDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: [.clear, UITheme.goldLine.opacity(0.52), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(width: 1, height: 52)
     }
 }
 
@@ -681,19 +876,31 @@ private struct InstrumentAmountText: View {
     var text: String
 
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            amount(size: 42)
+            amount(size: 36)
+            amount(size: 30)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(height: 50, alignment: .center)
+        .clipped()
+    }
+
+    private func amount(size: CGFloat) -> some View {
         Text(text)
-            .font(.system(size: 43, weight: .medium, design: .monospaced))
+            .font(.system(size: size, weight: .semibold, design: .monospaced))
             .foregroundStyle(
                 LinearGradient(
-                    colors: [UITheme.ink, Color(red: 1.0, green: 0.86, blue: 0.62)],
+                    colors: [UITheme.goldBright, UITheme.ink, Color(red: 0.82, green: 0.57, blue: 0.28)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
-            .shadow(color: UITheme.gold.opacity(0.18), radius: 7, x: 0, y: 0)
-            .shadow(color: .black.opacity(0.45), radius: 2, x: 0, y: 2)
+            .shadow(color: UITheme.gold.opacity(0.22), radius: 7, x: 0, y: 0)
+            .shadow(color: .black.opacity(0.50), radius: 2, x: 0, y: 2)
             .lineLimit(1)
-            .minimumScaleFactor(0.42)
+            .minimumScaleFactor(0.30)
+            .allowsTightening(true)
             .monospacedDigit()
             .frame(maxWidth: .infinity, alignment: .trailing)
     }
@@ -716,8 +923,21 @@ private struct RewardCompanionScene: View {
     }
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 2) {
             ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [UITheme.goldDeep.opacity(0.42), Color(red: 0.20, green: 0.12, blue: 0.06).opacity(0.68)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: layout.shelfSize.width, height: layout.shelfSize.height)
+                    .offset(layout.shelfOffset)
+                    .shadow(color: .black.opacity(0.40), radius: 8, x: 0, y: 7)
+                    .zIndex(1)
+
                 Ellipse()
                     .fill(.black.opacity(0.32))
                     .frame(width: layout.shadowSize.width, height: layout.shadowSize.height)
@@ -737,7 +957,12 @@ private struct RewardCompanionScene: View {
             }
             .frame(width: layout.sceneSize.width, height: layout.sceneSize.height)
 
-            RewardItemNamePlate(name: itemName, width: layout.plateWidth)
+            Text(itemName)
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .foregroundStyle(UITheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+                .frame(width: layout.plateWidth)
                 .offset(x: layout.plateOffsetX)
         }
         .accessibilityHidden(true)
@@ -761,84 +986,86 @@ private struct RewardCompanionScene: View {
 }
 
 private struct RewardSceneLayout {
-    var sceneSize: CGSize = CGSize(width: 168, height: 110)
-    var productSize: CGSize = CGSize(width: 128, height: 112)
-    var productOffset: CGSize = CGSize(width: 28, height: -12)
-    var productZ: Double = 4
-    var catSize: CGSize = CGSize(width: 120, height: 138)
-    var catOffset: CGSize = CGSize(width: -44, height: 13)
-    var catZ: Double = 3
-    var shadowSize: CGSize = CGSize(width: 148, height: 18)
-    var shadowOffset: CGSize = CGSize(width: 12, height: 48)
-    var plateWidth: CGFloat = 136
-    var plateOffsetX: CGFloat = 22
+    var sceneSize: CGSize = CGSize(width: 152, height: 92)
+    var productSize: CGSize = CGSize(width: 92, height: 82)
+    var productOffset: CGSize = CGSize(width: 31, height: -11)
+    var productZ: Double = 3
+    var catSize: CGSize = CGSize(width: 100, height: 116)
+    var catOffset: CGSize = CGSize(width: -39, height: 12)
+    var catZ: Double = 5
+    var shadowSize: CGSize = CGSize(width: 124, height: 14)
+    var shadowOffset: CGSize = CGSize(width: 7, height: 38)
+    var shelfSize: CGSize = CGSize(width: 134, height: 17)
+    var shelfOffset: CGSize = CGSize(width: 11, height: 38)
+    var plateWidth: CGFloat = 116
+    var plateOffsetX: CGFloat = 15
 
     static func layout(for assetName: String) -> RewardSceneLayout {
         switch assetName {
         case "reward-speaker":
             return RewardSceneLayout(
-                productSize: CGSize(width: 140, height: 108),
-                productOffset: CGSize(width: 34, height: -20),
-                productZ: 5,
-                catSize: CGSize(width: 116, height: 132),
-                catOffset: CGSize(width: -42, height: 16),
-                catZ: 3,
-                shadowSize: CGSize(width: 154, height: 17),
-                shadowOffset: CGSize(width: 12, height: 49),
-                plateWidth: 128,
-                plateOffsetX: 31
+                productSize: CGSize(width: 98, height: 78),
+                productOffset: CGSize(width: 32, height: -12),
+                productZ: 3,
+                catSize: CGSize(width: 100, height: 116),
+                catOffset: CGSize(width: -39, height: 12),
+                catZ: 5,
+                shadowSize: CGSize(width: 128, height: 14),
+                shadowOffset: CGSize(width: 9, height: 38),
+                plateWidth: 116,
+                plateOffsetX: 28
             )
         case "reward-monitor", "reward-projector", "reward-office-chair":
             return RewardSceneLayout(
-                productSize: CGSize(width: 142, height: 116),
-                productOffset: CGSize(width: 30, height: -17),
-                productZ: 5,
-                catSize: CGSize(width: 114, height: 130),
-                catOffset: CGSize(width: -46, height: 15),
-                catZ: 3,
-                shadowSize: CGSize(width: 156, height: 18),
-                shadowOffset: CGSize(width: 10, height: 49),
-                plateWidth: 138,
-                plateOffsetX: 26
+                productSize: CGSize(width: 100, height: 82),
+                productOffset: CGSize(width: 31, height: -11),
+                productZ: 3,
+                catSize: CGSize(width: 100, height: 116),
+                catOffset: CGSize(width: -40, height: 12),
+                catZ: 5,
+                shadowSize: CGSize(width: 130, height: 14),
+                shadowOffset: CGSize(width: 8, height: 38),
+                plateWidth: 118,
+                plateOffsetX: 23
             )
         case "reward-hotel", "reward-travel", "reward-massage":
             return RewardSceneLayout(
-                productSize: CGSize(width: 132, height: 112),
-                productOffset: CGSize(width: 32, height: -18),
-                productZ: 4,
-                catSize: CGSize(width: 128, height: 146),
-                catOffset: CGSize(width: -38, height: 14),
-                catZ: 3,
-                shadowSize: CGSize(width: 158, height: 18),
-                shadowOffset: CGSize(width: 8, height: 49),
-                plateWidth: 138,
-                plateOffsetX: 27
+                productSize: CGSize(width: 96, height: 82),
+                productOffset: CGSize(width: 31, height: -11),
+                productZ: 3,
+                catSize: CGSize(width: 102, height: 118),
+                catOffset: CGSize(width: -37, height: 11),
+                catZ: 5,
+                shadowSize: CGSize(width: 130, height: 14),
+                shadowOffset: CGSize(width: 8, height: 38),
+                plateWidth: 118,
+                plateOffsetX: 24
             )
         case "reward-coffee", "reward-tea", "reward-burger-meal", "reward-noodle-bento", "reward-salad", "reward-brunch", "reward-restaurant-meal", "reward-steak", "reward-buffet-hotpot":
             return RewardSceneLayout(
-                productSize: CGSize(width: 132, height: 116),
-                productOffset: CGSize(width: 31, height: -16),
-                productZ: 5,
-                catSize: CGSize(width: 112, height: 128),
-                catOffset: CGSize(width: -43, height: 17),
-                catZ: 3,
-                shadowSize: CGSize(width: 150, height: 17),
-                shadowOffset: CGSize(width: 12, height: 49),
-                plateWidth: 136,
-                plateOffsetX: 28
+                productSize: CGSize(width: 94, height: 82),
+                productOffset: CGSize(width: 31, height: -10),
+                productZ: 3,
+                catSize: CGSize(width: 100, height: 116),
+                catOffset: CGSize(width: -39, height: 12),
+                catZ: 5,
+                shadowSize: CGSize(width: 126, height: 14),
+                shadowOffset: CGSize(width: 9, height: 38),
+                plateWidth: 116,
+                plateOffsetX: 25
             )
         case "reward-airpods", "reward-earbuds", "reward-headphones", "reward-keyboard", "reward-keycaps", "reward-mouse", "reward-desk-setup", "reward-tablet", "reward-camera", "reward-game-console":
             return RewardSceneLayout(
-                productSize: CGSize(width: 136, height: 116),
-                productOffset: CGSize(width: 32, height: -17),
-                productZ: 5,
-                catSize: CGSize(width: 114, height: 130),
-                catOffset: CGSize(width: -43, height: 16),
-                catZ: 3,
-                shadowSize: CGSize(width: 152, height: 17),
-                shadowOffset: CGSize(width: 12, height: 49),
-                plateWidth: 136,
-                plateOffsetX: 30
+                productSize: CGSize(width: 96, height: 82),
+                productOffset: CGSize(width: 31, height: -11),
+                productZ: 3,
+                catSize: CGSize(width: 100, height: 116),
+                catOffset: CGSize(width: -39, height: 12),
+                catZ: 5,
+                shadowSize: CGSize(width: 128, height: 14),
+                shadowOffset: CGSize(width: 9, height: 38),
+                plateWidth: 116,
+                plateOffsetX: 27
             )
         default:
             return RewardSceneLayout()
@@ -983,7 +1210,7 @@ private enum RewardLoopSpriteStore {
             return cached
         }
         let name = String(format: "frame-%02d", normalized)
-        guard let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Pets/zhima/reward-animations/\(poseID)"),
+        guard let url = MoneyTodayResources.url(forResource: name, withExtension: "png", subdirectory: "Pets/zhima/reward-animations/\(poseID)"),
               let image = NSImage(contentsOf: url)
         else { return nil }
         cache[cacheKey] = image
@@ -1008,7 +1235,6 @@ private struct RewardAssetIcon: View {
         }
     }
 }
-
 @MainActor
 private enum RewardImageStore {
     private static var cache: [String: NSImage] = [:]
@@ -1020,9 +1246,9 @@ private enum RewardImageStore {
         let image: NSImage?
         if let named = NSImage(named: name) {
             image = named
-        } else if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "RewardsV2/final-47") {
+        } else if let url = MoneyTodayResources.url(forResource: name, withExtension: "png", subdirectory: "RewardsV2/final-47") {
             image = NSImage(contentsOf: url)
-        } else if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Rewards") {
+        } else if let url = MoneyTodayResources.url(forResource: name, withExtension: "png", subdirectory: "Rewards") {
             image = NSImage(contentsOf: url)
         } else {
             image = nil
@@ -1137,7 +1363,7 @@ private enum PetSpriteStore {
         if let cachedSheet {
             return cachedSheet
         }
-        guard let url = Bundle.main.url(forResource: "spritesheet", withExtension: "webp", subdirectory: "Pets/zhima"),
+        guard let url = MoneyTodayResources.url(forResource: "spritesheet", withExtension: "webp", subdirectory: "Pets/zhima"),
               let image = NSImage(contentsOf: url)
         else {
             return nil
@@ -1155,11 +1381,21 @@ private struct IconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(UITheme.ink.opacity(0.86))
-                .frame(width: 34, height: 34)
-                .background(Circle().fill(.white.opacity(0.075)))
-                .overlay(Circle().stroke(.white.opacity(0.14), lineWidth: 1))
+                .frame(width: 42, height: 42)
+                .background(
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.075), Color.black.opacity(0.22)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                )
+                .overlay(Circle().stroke(UITheme.goldLine.opacity(0.38), lineWidth: 1))
+                .shadow(color: .black.opacity(0.25), radius: 5, x: 0, y: 3)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -1277,16 +1513,21 @@ private struct GlassCard: View {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(stroke, lineWidth: 1)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius - 1, style: .continuous)
+                    .stroke(Color.white.opacity(0.055), lineWidth: 1)
+                    .padding(1)
+            )
     }
 }
 
 private struct RowBackground: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 11, style: .continuous)
-            .fill(UITheme.rowFill)
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(Color.black.opacity(0.20))
             .overlay(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(.white.opacity(0.08), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(UITheme.goldLine.opacity(0.26), lineWidth: 1)
             )
     }
 }
@@ -1294,10 +1535,10 @@ private struct RowBackground: View {
 private struct SettingsGroupBackground: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 15, style: .continuous)
-            .fill(.black.opacity(0.18))
+            .fill(.black.opacity(0.24))
             .overlay(
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .stroke(.white.opacity(0.10), lineWidth: 1)
+                    .stroke(UITheme.goldLine.opacity(0.32), lineWidth: 1)
             )
     }
 }
@@ -1305,7 +1546,7 @@ private struct SettingsGroupBackground: View {
 private struct DividerLine: View {
     var body: some View {
         Rectangle()
-            .fill(.white.opacity(0.07))
+            .fill(UITheme.goldLine.opacity(0.20))
             .frame(height: 1)
             .padding(.leading, 52)
     }
@@ -1317,18 +1558,18 @@ private struct RowIcon: View {
     var body: some View {
         Image(systemName: systemName)
             .font(.system(size: 16, weight: .medium))
-            .foregroundStyle(UITheme.ink.opacity(0.88))
+            .foregroundStyle(UITheme.goldBright.opacity(0.92))
             .frame(width: 28, height: 28)
     }
 }
 
 private struct FieldBackground: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(Color.white.opacity(0.92))
+        RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(Color(red: 0.95, green: 0.90, blue: 0.78).opacity(0.94))
             .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(.white.opacity(0.35), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(UITheme.goldBright.opacity(0.35), lineWidth: 1)
             )
     }
 }
@@ -1339,7 +1580,9 @@ private struct GreenProgressBar: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule().fill(.black.opacity(0.24))
+                Capsule()
+                    .fill(.black.opacity(0.35))
+                    .overlay(Capsule().stroke(UITheme.goldLine.opacity(0.28), lineWidth: 1))
                 Capsule()
                     .fill(
                         LinearGradient(
@@ -1349,7 +1592,7 @@ private struct GreenProgressBar: View {
                         )
                     )
                     .frame(width: max(7, proxy.size.width * CGFloat(min(max(value, 0), 1))))
-                    .shadow(color: UITheme.mint.opacity(0.30), radius: 5, x: 0, y: 0)
+                    .shadow(color: UITheme.mint.opacity(0.38), radius: 6, x: 0, y: 0)
             }
         }
     }
@@ -1361,11 +1604,15 @@ private struct MoneyToggleStyle: ToggleStyle {
             configuration.isOn.toggle()
         } label: {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(configuration.isOn ? UITheme.mint.opacity(0.92) : Color.gray.opacity(0.34))
+                .fill(configuration.isOn ? UITheme.mint.opacity(0.92) : Color.black.opacity(0.34))
                 .frame(width: 42, height: 24)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(configuration.isOn ? Color.white.opacity(0.24) : UITheme.goldLine.opacity(0.22), lineWidth: 1)
+                )
                 .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                     Circle()
-                        .fill(.white)
+                        .fill(configuration.isOn ? Color.white : UITheme.inkDim)
                         .frame(width: 20, height: 20)
                         .padding(2)
                         .shadow(color: .black.opacity(0.18), radius: 2, x: 0, y: 1)

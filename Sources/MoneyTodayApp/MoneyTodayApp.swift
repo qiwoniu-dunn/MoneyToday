@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 @main
@@ -26,20 +27,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureStatusItem()
         viewModel.start()
         if ProcessInfo.processInfo.environment["MONEYTODAY_OPEN_PANEL"] == "1" {
-            showSnapshotPanel()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                self?.showSnapshotPanel()
+            }
         }
     }
 
     private func configurePanel() {
         let panel = MoneyTodayPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 410, height: 586),
+            contentRect: NSRect(x: 0, y: 0, width: 410, height: 612),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.level = .popUpMenu
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
@@ -47,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.contentViewController = NSHostingController(rootView: MoneyTodayPopover(viewModel: viewModel) { [weak self] height in
             self?.resizePanel(height: height)
         })
+        panel.contentView?.wantsLayer = true
+        panel.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
         self.panel = panel
     }
 
@@ -56,8 +61,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let targetSize = NSSize(width: 410, height: height)
         guard abs(current.width - targetSize.width) > 0.5 || abs(current.height - targetSize.height) > 0.5 else { return }
 
-        let newOrigin = NSPoint(x: current.origin.x, y: panel.isVisible ? current.maxY - targetSize.height : current.origin.y)
-        panel.setFrame(NSRect(origin: newOrigin, size: targetSize), display: true, animate: panel.isVisible)
+        let visibleFrame = panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+        var newY = panel.isVisible ? current.maxY - targetSize.height : current.origin.y
+        if visibleFrame != .zero {
+            newY = max(newY, visibleFrame.minY + 8)
+        }
+        let targetFrame = NSRect(origin: NSPoint(x: current.origin.x, y: newY), size: targetSize)
+        guard panel.isVisible else {
+            panel.setFrame(targetFrame, display: true)
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.22
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(targetFrame, display: true)
+        }
     }
 
     private func configureStatusItem() {
@@ -88,7 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         var originX = screenFrame.midX - panelSize.width / 2
         originX = min(max(originX, screenVisibleFrame.minX + 8), screenVisibleFrame.maxX - panelSize.width - 8)
-        let originY = screenFrame.minY - panelSize.height - 6
+        let originY = max(screenVisibleFrame.minY + 8, screenFrame.minY - panelSize.height - 6)
 
         panel.setFrameOrigin(NSPoint(x: originX, y: originY))
         viewModel.setPanelVisible(true)
@@ -117,6 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewModel.setPanelVisible(true)
         panel.orderFrontRegardless()
         panel.makeKey()
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func installOutsideClickMonitor() {
